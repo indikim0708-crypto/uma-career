@@ -71,14 +71,16 @@ function NameEntry({ names, onChange, onRandomName, onConfirm, onBack }) {
         <button className="back-button" type="button" onClick={onBack}>← 홈으로</button>
         <section className="panel">
           <p className="section-kicker">NEW CAREER</p>
-          <h1>캐릭터의 이름을<br />입력하세요.</h1>
+          <div className="name-title-row">
+            <h1>우마무스메의 이름을<br />입력하세요.</h1>
+            <button className="secondary-button random-name-button" type="button" onClick={onRandomName}><span aria-hidden="true">🎲</span> 랜덤</button>
+          </div>
           <div className="name-fields">
             <label>성<input type="text" name="lastName" value={names.lastName} onChange={onChange} maxLength="5" autoComplete="off" placeholder="메지로" /></label>
             <label>이름<input type="text" name="firstName" value={names.firstName} onChange={onChange} maxLength="5" autoComplete="off" placeholder="맥퀸" /></label>
           </div>
           <p className="field-hint">각각 최대 5글자까지 입력할 수 있습니다.</p>
         </section>
-        <button className="secondary-button random-name-button" type="button" onClick={onRandomName}><span aria-hidden="true">🎲</span> 랜덤 이름</button>
         <button className="primary-button flow-primary" type="submit" disabled={!canContinue}><span>확인</span><span aria-hidden="true">→</span></button>
       </form>
     </main>
@@ -108,7 +110,7 @@ function OriginReview({ career, onReroll, onConfirm, onBack }) {
         </section>
 
         <div className="review-actions">
-          <button className="secondary-button" type="button" onClick={onReroll}>리롤 하기 <span aria-hidden="true">↻</span></button>
+          <button className="secondary-button" type="button" onClick={onReroll}>리롤 <span aria-hidden="true">↻</span></button>
           <button className="primary-button" type="button" onClick={onConfirm}><span>확인</span><span aria-hidden="true">→</span></button>
         </div>
       </div>

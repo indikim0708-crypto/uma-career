@@ -85,7 +85,8 @@ button { border: 0; }
 .back-button { align-items: center; background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; font-size: 12px; height: 44px; justify-self: start; padding: 0 4px; }
 .back-button:focus-visible { outline: 2px solid var(--violet-soft); outline-offset: 2px; }
 .name-form > .panel { margin-top: 2px; }
-.name-form h1 { font: 400 28px/1.2 Georgia, serif; margin: 8px 0 20px; }
+.name-title-row { align-items: flex-start; display: flex; gap: 10px; justify-content: space-between; margin: 8px 0 20px; }
+.name-form h1 { font: 400 28px/1.2 Georgia, serif; margin: 0; min-width: 0; }
 .name-fields { display: grid; gap: 12px; }
 .name-fields label { color: var(--muted); display: grid; font-size: 12px; gap: 6px; }
 .name-fields input { background: #131116; border: 1px solid var(--line); border-radius: 0; color: var(--text); font: 500 17px/1 system-ui, sans-serif; height: 48px; min-width: 0; outline: none; padding: 0 13px; width: 100%; }
@@ -93,7 +94,7 @@ button { border: 0; }
 .name-fields input:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232, 202, 105, 0.1); }
 .field-hint { color: #7f7785; font-size: 11px; margin: 10px 0 0; }
 .flow-primary { width: 100%; }
-.random-name-button { min-height: 48px; width: 100%; }
+.random-name-button { flex: 0 0 auto; height: 44px; min-width: 82px; padding-inline: 10px; }
 .profile-list { margin: 0; }
 .profile-list div { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 10px; grid-template-columns: 76px minmax(0, 1fr); padding: 9px 0; }
 .profile-list dt { color: var(--muted); font-size: 12px; }
@@ -305,6 +306,9 @@ button { border: 0; }
   .stat-value { font-size: 17px; }
   .type-card { padding-inline: 12px; }
   .intro h1 { font-size: 40px; }
+  .name-title-row { gap: 8px; }
+  .name-form h1 { font-size: 25px; }
+  .random-name-button { min-width: 76px; padding-inline: 8px; }
   .event-backdrop { padding: 8px; }
   .event-modal { max-height: calc(100svh - 16px); padding: 14px 12px; }
   .event-modal h2 { font-size: 23px; }

@@ -9,6 +9,8 @@ import { acknowledgeMiddleAdmission, advanceCareer, displayStat, finishElementar
 import { finishMiddleEvent, finishMiddleLegend, selectMiddleEventChoice, selectMiddleLegend } from './game/middleEvents.js'
 import { generateRandomUmaName } from './game/nameGenerator.js'
 import { getElementarySchoolById } from './data/schools.js'
+import TurnProgress from './components/TurnProgress.jsx'
+import { createTurnProgressPlan } from './game/turnProgress.js'
 
 const SCREENS = {
   HOME: 'HOME',
@@ -315,10 +317,14 @@ function LegendEventModal({ event, outcome, onSelect, onContinue }) {
   )
 }
 
-function Playing({ career, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue }) {
+function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, onProgressEventTrigger, onProgressLegendTrigger, onProgressComplete, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue }) {
   const currentTurn = TURNS[career.turnIndex]
   const lastLog = career.logs[0]
   const progress = ((career.turnIndex) / TURNS.length) * 100
+  const elementaryEventOpen = Boolean(turnProgress?.eventTriggered && !turnProgress.eventResolved && career.elementaryEventState.pendingEvent)
+  const middleEventOpen = Boolean(turnProgress?.eventTriggered && !turnProgress.eventResolved && career.middleState?.pendingEvent)
+  const legendOpen = Boolean(turnProgress?.legendTriggered && !turnProgress.legendResolved && career.middleState?.pendingLegend)
+  const progressPaused = elementaryEventOpen || middleEventOpen || legendOpen
 
   return (
     <main className="game-page page-shell">
@@ -345,14 +351,15 @@ function Playing({ career, onAdvance, onEventChoice, onEventContinue, onTransfer
           {career.history.length > 0 ? career.history.slice(0, 3).map((log, index) => <GrowthLog log={log} isLatest={index === 0} key={`${log.kind ?? 'TURN'}-${log.turn}`} />) : <div className="empty-log"><p>첫 성장 기록을 기다리고 있습니다.</p></div>}
         </aside>
         <div className="turn-action">
-          <button className="primary-button" type="button" onClick={onAdvance}><span>다음 턴</span><span aria-hidden="true">→</span></button>
+          <button className="primary-button" type="button" onClick={onAdvance} disabled={Boolean(turnProgress)}><span>다음 턴</span><span aria-hidden="true">→</span></button>
         </div>
       </div>
       {career.transferState?.offered && !career.transferState.resolved && <TransferModal career={career} onDecision={onTransferDecision} />}
-      {career.elementaryEventState.pendingEvent && <EventModal event={career.elementaryEventState.pendingEvent} outcome={career.elementaryEventState.pendingOutcome} onSelect={onEventChoice} onContinue={onEventContinue} />}
-      {career.middleState?.admissionPending && <AdmissionModal career={career} onContinue={onAdmissionContinue} />}
-      {career.middleState?.pendingEvent && <EventModal event={career.middleState.pendingEvent} outcome={career.middleState.pendingOutcome} onSelect={onMiddleEventChoice} onContinue={onMiddleEventContinue} />}
-      {career.middleState?.pendingLegend && <LegendEventModal event={career.middleState.pendingLegend} outcome={career.middleState.pendingLegendOutcome} onSelect={onLegendSelect} onContinue={onLegendContinue} />}
+      {turnProgress && <TurnProgress plan={turnProgress} speed={progressSpeed} paused={progressPaused} onSpeedChange={onProgressSpeedChange} onEventTrigger={onProgressEventTrigger} onLegendTrigger={onProgressLegendTrigger} onComplete={onProgressComplete} />}
+      {elementaryEventOpen && <EventModal event={career.elementaryEventState.pendingEvent} outcome={career.elementaryEventState.pendingOutcome} onSelect={onEventChoice} onContinue={onEventContinue} />}
+      {!turnProgress && career.middleState?.admissionPending && <AdmissionModal career={career} onContinue={onAdmissionContinue} />}
+      {middleEventOpen && <EventModal event={career.middleState.pendingEvent} outcome={career.middleState.pendingOutcome} onSelect={onMiddleEventChoice} onContinue={onMiddleEventContinue} />}
+      {legendOpen && <LegendEventModal event={career.middleState.pendingLegend} outcome={career.middleState.pendingLegendOutcome} onSelect={onLegendSelect} onContinue={onLegendContinue} />}
     </main>
   )
 }
@@ -401,11 +408,15 @@ function App() {
   const [names, setNames] = useState({ lastName: '', firstName: '' })
   const [career, setCareer] = useState(null)
   const [selectedType, setSelectedType] = useState(null)
+  const [turnProgress, setTurnProgress] = useState(null)
+  const [progressSpeed, setProgressSpeed] = useState(1)
 
   const startNewCareer = () => {
     setNames({ lastName: '', firstName: '' })
     setCareer(null)
     setSelectedType(null)
+    setTurnProgress(null)
+    setProgressSpeed(1)
     setScreen(SCREENS.NAME_ENTRY)
   }
 
@@ -431,28 +442,54 @@ function App() {
   }
 
   const handleAdvance = () => {
+    if (turnProgress) return
+    const stage = TURNS[career.turnIndex].stage
     const next = advanceCareer(career)
-    setCareer(next)
+    if (['초등부', '중등부'].includes(stage) && (next.elementaryEventState.pendingEvent || next.middleState?.pendingEvent)) {
+      const prepared = createTurnProgressPlan(next)
+      setCareer(prepared.career)
+      setTurnProgress(prepared.plan)
+    } else {
+      setCareer(next)
+    }
     if (next.complete) setScreen(SCREENS.RESULT)
   }
 
   const handleEventChoice = (choiceId) => setCareer((current) => selectElementaryEventChoice(current, choiceId))
 
-  const handleEventContinue = () => setCareer((current) => finishElementaryEvent(current))
+  const handleEventContinue = () => {
+    setCareer((current) => finishElementaryEvent(current))
+    setTurnProgress((current) => current ? { ...current, eventResolved: true } : current)
+  }
 
-  const handleTransferDecision = (accepted) => setCareer((current) => resolveTransferAndStartElementaryTurn(current, accepted))
+  const handleTransferDecision = (accepted) => {
+    const next = resolveTransferAndStartElementaryTurn(career, accepted)
+    const prepared = createTurnProgressPlan(next)
+    setCareer(prepared.career)
+    setTurnProgress(prepared.plan)
+  }
 
   const handleAdmissionContinue = () => setCareer((current) => acknowledgeMiddleAdmission(current))
   const handleMiddleEventChoice = (choiceId) => setCareer((current) => selectMiddleEventChoice(current, choiceId))
-  const handleMiddleEventContinue = () => setCareer((current) => finishMiddleEvent(current))
+  const handleMiddleEventContinue = () => {
+    setCareer((current) => finishMiddleEvent(current))
+    setTurnProgress((current) => current ? { ...current, eventResolved: true } : current)
+  }
   const handleLegendSelect = () => setCareer((current) => selectMiddleLegend(current))
-  const handleLegendContinue = () => setCareer((current) => finishMiddleLegend(current))
+  const handleLegendContinue = () => {
+    setCareer((current) => finishMiddleLegend(current))
+    setTurnProgress((current) => current ? { ...current, legendResolved: true } : current)
+  }
+
+  const triggerProgressEvent = () => setTurnProgress((current) => current ? { ...current, eventTriggered: true } : current)
+  const triggerProgressLegend = () => setTurnProgress((current) => current ? { ...current, legendTriggered: true } : current)
+  const completeProgress = () => setTurnProgress(null)
 
   if (screen === SCREENS.HOME) return <Intro onStart={startNewCareer} />
   if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onRandomName={randomizeName} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
   if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
   if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
-  if (screen === SCREENS.CAREER) return <Playing career={career} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} />
+  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} />
   if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
   return <Intro onStart={startNewCareer} />
 }

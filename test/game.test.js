@@ -20,6 +20,8 @@ import { MIDDLE_SCHOOLS } from '../src/data/middleSchools.js'
 import { calculateAbilityScore, calculateMiddleAdmissionScore, calculateSchoolHistoryScore, chooseFallbackMiddleSchool, getCentralAdmissionChance } from '../src/game/middleAdmission.js'
 import { finishMiddleEvent, finishMiddleLegend, selectMiddleEventChoice, selectMiddleLegend } from '../src/game/middleEvents.js'
 import { getEligibleLegendEvents, rollLegendTargetCount, scheduleMiddleLegends } from '../src/game/middleLegend.js'
+import { ELEMENTARY_PROGRESS_MESSAGES, MIDDLE_PROGRESS_MESSAGES, PROGRESS_MESSAGES } from '../src/data/progressMessages.js'
+import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDurationMs, selectTurnProgressMessages, TURN_PROGRESS_DURATION_MS } from '../src/game/turnProgress.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -646,4 +648,84 @@ test('six middle turns always use unique common events and then preserve state f
   assert.equal(TURNS[career.turnIndex].stage, '고등부')
   assert.equal(career.middleState.completedEventIds.length, 6)
   assert.equal(career.history.filter(({ turn }) => turn >= 7 && turn <= 12).length, 6)
+})
+
+test('progress message data contains 100 effect-free entries for each supported stage', () => {
+  assert.equal(ELEMENTARY_PROGRESS_MESSAGES.length, 100)
+  assert.equal(MIDDLE_PROGRESS_MESSAGES.length, 100)
+  assert.equal(PROGRESS_MESSAGES.length, 200)
+  assert.equal(new Set(PROGRESS_MESSAGES.map(({ id }) => id)).size, 200)
+  for (const message of PROGRESS_MESSAGES) {
+    assert.equal('effect' in message, false, message.id)
+    assert.ok(['ELEMENTARY', 'MIDDLE'].includes(message.stage))
+    assert.ok(message.text.length > 0)
+  }
+})
+
+test('progress messages obey stage, growth type, school, and condition filters', () => {
+  const elementary = getEligibleProgressMessages({ stage: 'ELEMENTARY', growthTypeId: 'sprinter', schoolId: 'cap', conditionDelta: 0 })
+  assert.ok(elementary.every(({ stage }) => stage === 'ELEMENTARY'))
+  assert.ok(elementary.some(({ id }) => id === 'elem_086'))
+  assert.ok(!elementary.some(({ id }) => id === 'elem_088'))
+  assert.ok(!elementary.some(({ category }) => ['CONDITION_UP', 'CONDITION_DOWN'].includes(category)))
+
+  const up = getEligibleProgressMessages({ stage: 'MIDDLE', growthTypeId: 'router', schoolId: 'kasamatsu_tracen_middle', conditionDelta: 1 })
+  assert.ok(up.some(({ category }) => category === 'CONDITION_UP'))
+  assert.ok(!up.some(({ category }) => category === 'CONDITION_DOWN'))
+  assert.ok(up.some(({ id }) => id === 'middle_063'))
+  assert.ok(!up.some(({ id }) => id === 'middle_060'))
+
+  const down = getEligibleProgressMessages({ stage: 'MIDDLE', growthTypeId: 'router', schoolId: 'kasamatsu_tracen_middle', conditionDelta: -1 })
+  assert.ok(down.some(({ category }) => category === 'CONDITION_DOWN'))
+  assert.ok(!down.some(({ category }) => category === 'CONDITION_UP'))
+})
+
+test('one progress turn selects 4-6 unique messages and suppresses recent repeats', () => {
+  const context = { stage: 'ELEMENTARY', growthTypeId: 'router', schoolId: 'cap', conditionDelta: 1 }
+  const first = selectTurnProgressMessages(context, [], seededRandom(501), 6)
+  assert.equal(first.length, 6)
+  assert.equal(new Set(first.map(({ id }) => id)).size, 6)
+  assert.equal(first.filter(({ category }) => category === 'CONDITION_UP').length, 1)
+  for (let index = 2; index < first.length; index += 1) {
+    assert.ok(!(first[index].category === first[index - 1].category && first[index].category === first[index - 2].category))
+  }
+  const second = selectTurnProgressMessages(context, first.map(({ id }) => id), seededRandom(502), 6)
+  assert.ok(second.every(({ id }) => !first.some((message) => message.id === id)))
+})
+
+test('turn progress plan keeps gameplay values unchanged and schedules event and legend separately', () => {
+  const rng = seededRandom(610)
+  let career = chooseGrowthType(createCareer(rng), 'router')
+  career = advanceCareer(career, rng)
+  const statsAfterGrowth = { ...career.stats }
+  const conditionAfterGrowth = career.condition
+  const prepared = createTurnProgressPlan(career, rng)
+  assert.equal(prepared.plan.durationMs, TURN_PROGRESS_DURATION_MS)
+  assert.ok(prepared.plan.messages.length >= 4 && prepared.plan.messages.length <= 6)
+  for (let index = 1; index < prepared.plan.messages.length; index += 1) {
+    const intervalSeconds = (prepared.plan.messages[index].at - prepared.plan.messages[index - 1].at) * 8
+    assert.ok(intervalSeconds >= 1.1 && intervalSeconds <= 1.8)
+  }
+  assert.ok(prepared.plan.eventProgressPoint >= 0.35 && prepared.plan.eventProgressPoint <= 0.70)
+  assert.equal(prepared.plan.legendRequired, false)
+  assert.deepEqual(prepared.career.stats, statsAfterGrowth)
+  assert.equal(prepared.career.condition, conditionAfterGrowth)
+  assert.equal(prepared.career.turnIndex, 0)
+  assert.equal(getProgressDurationMs(1), 8000)
+  assert.equal(getProgressDurationMs(2), 4000)
+
+  const middle = {
+    ...career,
+    turnIndex: 6,
+    middleState: {
+      schoolId: 'central_tracen_middle',
+      legendSchedule: [{ eventId: 'legend_gentildonna', turn: 7, triggered: false }],
+    },
+    currentTurnHistory: { naturalConditionDelta: -1 },
+  }
+  const legendPlan = createTurnProgressPlan(middle, seededRandom(611)).plan
+  assert.equal(legendPlan.legendRequired, true)
+  assert.ok(legendPlan.legendProgressPoint >= 0.70 && legendPlan.legendProgressPoint <= 0.85)
+  assert.ok(legendPlan.legendProgressPoint > legendPlan.eventProgressPoint)
+  assert.equal(legendPlan.messages.filter(({ category }) => category === 'CONDITION_DOWN').length, 1)
 })

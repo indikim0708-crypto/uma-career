@@ -48,6 +48,7 @@ export function createCareer(names = {}, rng = Math.random) {
     turnIndex: 0,
     logs: [],
     history: [],
+    recentProgressMessageIds: [],
     currentTurnHistory: null,
     elementaryEventState: createElementaryEventState(school.id, rng),
     middleState: null,

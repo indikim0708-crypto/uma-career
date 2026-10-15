@@ -242,6 +242,22 @@ button { border: 0; }
 .transfer-actions { display: grid; gap: 8px; }
 .transfer-actions .primary-button, .transfer-actions .secondary-button { min-height: 48px; width: 100%; }
 
+.turn-progress-backdrop { align-items: center; background: rgba(7, 6, 9, 0.93); display: flex; inset: 0; justify-content: center; padding: 14px; position: fixed; z-index: 20; }
+.turn-progress-card { background: linear-gradient(150deg, #292331, #17151b 72%); border: 1px solid rgba(155, 93, 229, 0.55); box-shadow: 0 20px 70px rgba(0, 0, 0, 0.72); max-width: 500px; min-width: 0; padding: 16px; width: 100%; }
+.turn-progress-card header { align-items: flex-start; display: flex; gap: 12px; justify-content: space-between; }
+.turn-progress-card header p { color: var(--gold); font-size: 10px; font-weight: 900; letter-spacing: 0.14em; margin: 0 0 5px; }
+.turn-progress-card h2 { font: 400 25px/1.15 Georgia, serif; margin: 0; overflow-wrap: anywhere; }
+.speed-control { display: grid; flex: 0 0 auto; gap: 5px; grid-template-columns: repeat(2, 44px); }
+.speed-control button { background: #151319; border: 1px solid var(--line); color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 800; height: 44px; }
+.speed-control button.active { background: rgba(155, 93, 229, 0.2); border-color: var(--gold); color: var(--gold); }
+.turn-progress-track { background: #0e0d11; border: 1px solid var(--line); height: 12px; margin-top: 28px; overflow: hidden; width: 100%; }
+.turn-progress-track span { background: linear-gradient(90deg, #7040a5, var(--violet), var(--gold)); display: block; height: 100%; transition: width 80ms linear; }
+.turn-progress-meta { color: var(--muted); display: flex; font-size: 10px; justify-content: space-between; margin-top: 7px; }
+.turn-progress-meta strong { color: var(--gold); font-size: 12px; }
+.turn-progress-message { align-items: center; animation: progress-message-in 180ms ease-out; color: #eee7f1; display: flex; font: 400 17px/1.6 Georgia, serif; justify-content: center; margin: 24px auto 10px; min-height: 82px; overflow-wrap: anywhere; text-align: center; width: min(100%, 390px); }
+.turn-progress-paused { border-top: 1px solid var(--line); color: var(--violet-soft); font-size: 10px; letter-spacing: 0.05em; margin: 12px 0 0; padding-top: 10px; text-align: center; }
+@keyframes progress-message-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+
 .admission-modal { border-color: var(--gold); text-align: center; }
 .admission-emblem { color: var(--gold); font-size: 28px; margin: 6px 0 12px; text-shadow: 0 0 20px rgba(232, 202, 105, 0.55); }
 .admission-result { font: 700 25px Georgia, serif; margin: 10px 0 16px; }
@@ -313,4 +329,9 @@ button { border: 0; }
   .event-modal { max-height: calc(100svh - 16px); padding: 14px 12px; }
   .event-modal h2 { font-size: 23px; }
   .event-situation { margin-block: 9px 11px; }
+  .turn-progress-backdrop { padding: 8px; }
+  .turn-progress-card { padding: 14px 12px; }
+  .turn-progress-card h2 { font-size: 22px; }
+  .speed-control { grid-template-columns: repeat(2, 42px); }
+  .turn-progress-message { font-size: 16px; }
 }

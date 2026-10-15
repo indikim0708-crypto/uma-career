@@ -4,7 +4,7 @@ import { GROWTH_TYPES } from '../src/data/growthTypes.js'
 import { MAX_STAT, STATS } from '../src/data/stats.js'
 import { TURNS } from '../src/data/turns.js'
 import { getNextCondition } from '../src/game/condition.js'
-import { chooseGrowthType, createCareer, createInitialStats } from '../src/game/createCareer.js'
+import { chooseGrowthType, createCareer, createInitialStats, rerollCareer } from '../src/game/createCareer.js'
 import { advanceCareer } from '../src/game/growth.js'
 
 function seededRandom(seed) {
@@ -58,6 +58,26 @@ test('potential and stability are generated independently from separate random s
   assert.equal(career.potential, 20)
   assert.equal(career.stability, 80)
   assert.notEqual(career.potential, career.stability)
+})
+
+test('career stores a trimmed character name with a five-character limit', () => {
+  const career = createCareer({ lastName: '  메지로  ', firstName: '맥퀸123456' }, seededRandom(3))
+  assert.equal(career.lastName, '메지로')
+  assert.equal(career.firstName, '맥퀸123')
+  assert.equal(career.fullName, '메지로 맥퀸123')
+})
+
+test('reroll preserves the name while regenerating origin, stats, and hidden traits', () => {
+  const original = createCareer({ lastName: '메지로', firstName: '맥퀸' }, () => 0.2)
+  const rerolled = rerollCareer(original, () => 0.8)
+
+  assert.equal(rerolled.lastName, original.lastName)
+  assert.equal(rerolled.firstName, original.firstName)
+  assert.equal(rerolled.fullName, original.fullName)
+  assert.notEqual(rerolled.region.id, original.region.id)
+  assert.notDeepEqual(rerolled.stats, original.stats)
+  assert.notEqual(rerolled.potential, original.potential)
+  assert.notEqual(rerolled.stability, original.stability)
 })
 
 test('each growth type produces its intended tendency while every stat grows', () => {

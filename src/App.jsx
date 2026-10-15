@@ -3,9 +3,18 @@ import './App.css'
 import { GROWTH_TYPES } from './data/growthTypes.js'
 import { MAX_STAT, STATS } from './data/stats.js'
 import { TURNS } from './data/turns.js'
-import { createCareer, chooseGrowthType } from './game/createCareer.js'
+import { createCareer, chooseGrowthType, rerollCareer } from './game/createCareer.js'
 import { getCareerEvaluation } from './game/evaluation.js'
 import { advanceCareer, displayStat } from './game/growth.js'
+
+const SCREENS = {
+  HOME: 'HOME',
+  NAME_ENTRY: 'NAME_ENTRY',
+  ORIGIN: 'ORIGIN',
+  GROWTH_PLAN: 'GROWTH_PLAN',
+  CAREER: 'CAREER',
+  RESULT: 'RESULT',
+}
 
 function Brand() {
   return <div className="brand"><span className="brand-mark">UC</span><span>UMA CAREER</span></div>
@@ -49,21 +58,43 @@ function Intro({ onStart }) {
   )
 }
 
-function Setup({ career, selectedType, onSelect, onBegin, onReroll }) {
+function NameEntry({ names, onChange, onConfirm, onBack }) {
+  const canContinue = Boolean(names.lastName.trim() && names.firstName.trim())
+
   return (
     <main className="game-page page-shell">
-      <header className="topbar"><Brand /><span className="phase-label">CAREER SETUP</span></header>
+      <header className="topbar"><Brand /><span className="phase-label">NEW CAREER</span></header>
+      <form className="flow-layout name-form" onSubmit={(event) => { event.preventDefault(); if (canContinue) onConfirm() }}>
+        <button className="back-button" type="button" onClick={onBack}>← 홈으로</button>
+        <section className="panel">
+          <p className="section-kicker">NEW CAREER</p>
+          <h1>캐릭터의 이름을<br />입력하세요.</h1>
+          <div className="name-fields">
+            <label>성<input type="text" name="lastName" value={names.lastName} onChange={onChange} maxLength="5" autoComplete="off" placeholder="메지로" /></label>
+            <label>이름<input type="text" name="firstName" value={names.firstName} onChange={onChange} maxLength="5" autoComplete="off" placeholder="맥퀸" /></label>
+          </div>
+          <p className="field-hint">각각 최대 5글자까지 입력할 수 있습니다.</p>
+        </section>
+        <button className="primary-button flow-primary" type="submit" disabled={!canContinue}><span>확인</span><span aria-hidden="true">→</span></button>
+      </form>
+    </main>
+  )
+}
+
+function OriginReview({ career, onReroll, onConfirm, onBack }) {
+  return (
+    <main className="game-page page-shell">
+      <header className="topbar"><Brand /><span className="phase-label">ORIGIN</span></header>
       <div className="setup-layout">
+        <button className="back-button" type="button" onClick={onBack}>← 이름 수정</button>
         <section className="panel origin-card">
           <p className="section-kicker">01 · ORIGIN</p>
-          <h2>새로운 유망주</h2>
+          <h2>{career.fullName}의<br />출신과 능력은?</h2>
           <dl className="profile-list">
-            <div><dt>출신 지역</dt><dd>{career.region.name}</dd></div>
-            <div><dt>배정 학교</dt><dd>{career.school.name}</dd></div>
-            <div><dt>학교 분류</dt><dd>{career.school.rank}</dd></div>
-            <div><dt>육성 성향</dt><dd>{career.school.tendency}</dd></div>
+            <div><dt>이름</dt><dd>{career.fullName}</dd></div>
+            <div><dt>출신</dt><dd>{career.region.name}</dd></div>
+            <div><dt>초등학교</dt><dd>{career.school.name}</dd></div>
           </dl>
-          <button className="text-button" type="button" onClick={onReroll}>다른 유망주 찾기 ↻</button>
         </section>
 
         <section className="panel initial-stats">
@@ -72,8 +103,23 @@ function Setup({ career, selectedType, onSelect, onBegin, onReroll }) {
           <p className="muted-copy">포텐셜과 안정성은 커리어 종료 시 공개됩니다.</p>
         </section>
 
+        <div className="review-actions">
+          <button className="secondary-button" type="button" onClick={onReroll}>리롤 하기 <span aria-hidden="true">↻</span></button>
+          <button className="primary-button" type="button" onClick={onConfirm}><span>확인</span><span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </main>
+  )
+}
+
+function GrowthPlan({ career, selectedType, onSelect, onBegin, onBack }) {
+  return (
+    <main className="game-page page-shell">
+      <header className="topbar"><Brand /><span className="phase-label">GROWTH PLAN</span></header>
+      <div className="setup-layout growth-plan-layout">
+        <button className="back-button" type="button" onClick={onBack}>← 출신과 능력 확인</button>
         <section className="type-section">
-          <div className="section-heading"><div><p className="section-kicker">03 · GROWTH PLAN</p><h2>성장 타입 선택</h2></div><p>초기 능력치와 무관하게 앞으로의 성장 방향을 결정합니다.</p></div>
+          <div className="section-heading"><div><p className="section-kicker">03 · GROWTH PLAN</p><h2>{career.fullName}을 어떤 선수로<br />성장시킬까요?</h2></div></div>
           <div className="type-grid">
             {GROWTH_TYPES.map((type) => (
               <button className={`type-card ${selectedType === type.id ? 'selected' : ''}`} type="button" key={type.id} onClick={() => onSelect(type.id)} aria-pressed={selectedType === type.id}>
@@ -84,7 +130,7 @@ function Setup({ career, selectedType, onSelect, onBegin, onReroll }) {
             ))}
           </div>
           <div className="setup-action">
-            <button className="primary-button" type="button" disabled={!selectedType} onClick={onBegin}><span>육성 시작</span><span aria-hidden="true">→</span></button>
+            <button className="primary-button" type="button" disabled={!selectedType} onClick={onBegin}><span>이 성장 계획으로 시작</span><span aria-hidden="true">→</span></button>
           </div>
         </section>
       </div>
@@ -121,6 +167,7 @@ function Playing({ career, onAdvance }) {
       <div className="dashboard-layout">
         <section className="career-summary">
           <div className="chapter-line"><p className="section-kicker">CURRENT CHAPTER</p><span>{currentTurn.number} / {TURNS.length}</span></div>
+          <p className="character-name">{career.fullName}</p>
           <h1>{currentTurn.label}</h1>
           <p className="summary-line">{career.region.name} · {currentTurn.stage === '초등부' ? career.school.name : `${currentTurn.stage} 과정`}</p>
           <p className="summary-line">{career.growthType.name} · 컨디션 <strong className={`condition condition-${career.condition}`}>{career.condition}</strong></p>
@@ -151,6 +198,7 @@ function Complete({ career, onRestart }) {
       <div className="result-hero">
         <p className="eyebrow">24 TURNS COMPLETED</p>
         <h1>CAREER COMPLETE</h1>
+        <strong className="result-name">{career.fullName}의 커리어 결과</strong>
         <p>{getCareerEvaluation(career.potential, career.stability)}</p>
       </div>
       <div className="result-layout">
@@ -183,31 +231,50 @@ function Complete({ career, onRestart }) {
 }
 
 function App() {
-  const [screen, setScreen] = useState('intro')
+  const [screen, setScreen] = useState(SCREENS.HOME)
+  const [names, setNames] = useState({ lastName: '', firstName: '' })
   const [career, setCareer] = useState(null)
   const [selectedType, setSelectedType] = useState(null)
 
   const startNewCareer = () => {
-    setCareer(createCareer())
+    setNames({ lastName: '', firstName: '' })
+    setCareer(null)
     setSelectedType(null)
-    setScreen('setup')
+    setScreen(SCREENS.NAME_ENTRY)
+  }
+
+  const handleNameChange = (event) => {
+    setNames((current) => ({ ...current, [event.target.name]: event.target.value }))
+  }
+
+  const confirmName = () => {
+    const normalizedNames = {
+      lastName: names.lastName.trim(),
+      firstName: names.firstName.trim(),
+    }
+    setNames(normalizedNames)
+    setCareer(createCareer(normalizedNames))
+    setScreen(SCREENS.ORIGIN)
   }
 
   const beginCareer = () => {
     setCareer((current) => chooseGrowthType(current, selectedType))
-    setScreen('playing')
+    setScreen(SCREENS.CAREER)
   }
 
   const handleAdvance = () => {
     const next = advanceCareer(career)
     setCareer(next)
-    if (next.complete) setScreen('complete')
+    if (next.complete) setScreen(SCREENS.RESULT)
   }
 
-  if (screen === 'intro') return <Intro onStart={startNewCareer} />
-  if (screen === 'setup') return <Setup career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onReroll={startNewCareer} />
-  if (screen === 'complete') return <Complete career={career} onRestart={startNewCareer} />
-  return <Playing career={career} onAdvance={handleAdvance} />
+  if (screen === SCREENS.HOME) return <Intro onStart={startNewCareer} />
+  if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
+  if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
+  if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
+  if (screen === SCREENS.CAREER) return <Playing career={career} onAdvance={handleAdvance} />
+  if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
+  return <Intro onStart={startNewCareer} />
 }
 
 export default App

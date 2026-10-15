@@ -17,11 +17,21 @@ export function createInitialStats(rng = Math.random) {
   )
 }
 
-export function createCareer(rng = Math.random) {
+export function createCareer(names = {}, rng = Math.random) {
+  if (typeof names === 'function') {
+    rng = names
+    names = {}
+  }
+
+  const lastName = names.lastName?.trim().slice(0, 5) ?? ''
+  const firstName = names.firstName?.trim().slice(0, 5) ?? ''
   const region = REGIONS[randomIndex(REGIONS.length, rng)]
   const initialStats = createInitialStats(rng)
 
   return {
+    lastName,
+    firstName,
+    fullName: [lastName, firstName].filter(Boolean).join(' '),
     region,
     school: assignElementarySchool(region.id, rng),
     stats: { ...initialStats },
@@ -35,6 +45,10 @@ export function createCareer(rng = Math.random) {
     notice: '',
     complete: false,
   }
+}
+
+export function rerollCareer(career, rng = Math.random) {
+  return createCareer({ lastName: career.lastName, firstName: career.firstName }, rng)
 }
 
 export function chooseGrowthType(career, growthTypeId) {

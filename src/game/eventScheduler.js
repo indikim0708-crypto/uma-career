@@ -19,15 +19,27 @@ export function getSignatureEventForSchool(schoolId) {
   return getEventById(SIGNATURE_EVENT_IDS[schoolId])
 }
 
-export function scheduleSignatureEvent(schoolId, rng = Math.random) {
+export function scheduleSignatureEvent(schoolId, rng = Math.random, possibleGrades = [3, 4, 5, 6], guaranteed = false) {
   const empty = { signatureScheduled: false, signatureEventId: null, signatureGrade: null, signatureTriggered: false }
-  if (!isSpecialElementarySchool(schoolId) || rng() >= 0.3) return empty
+  if (!isSpecialElementarySchool(schoolId) || (!guaranteed && rng() >= 0.3)) return empty
 
   return {
     signatureScheduled: true,
     signatureEventId: SIGNATURE_EVENT_IDS[schoolId],
-    signatureGrade: randomChoice([3, 4, 5, 6], rng),
+    signatureGrade: randomChoice(possibleGrades, rng),
     signatureTriggered: false,
+  }
+}
+
+export function initializeTransferredSchoolEvents(previousState, schoolId, currentGrade, rng = Math.random) {
+  const possibleGrades = Array.from({ length: 7 - currentGrade }, (_, index) => currentGrade + index)
+  const signature = scheduleSignatureEvent(schoolId, rng, possibleGrades, schoolId === 'central_tracen')
+  return {
+    ...previousState,
+    schoolEventCount: 0,
+    ...signature,
+    pendingEvent: null,
+    pendingOutcome: null,
   }
 }
 

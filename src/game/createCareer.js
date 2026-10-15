@@ -4,6 +4,7 @@ import { ELEMENTARY_SCHOOLS } from '../data/schools.js'
 import { STATS } from '../data/stats.js'
 import { bellCurveScore, generatePotential, randomIndex, weightedPick } from './random.js'
 import { createElementaryEventState } from './eventScheduler.js'
+import { initializeTransferState } from './transfer.js'
 
 const INITIAL_STAT_WEIGHTS = { 8: 0.1, 9: 0.2, 10: 0.4, 11: 0.2, 12: 0.1 }
 
@@ -32,7 +33,7 @@ export function createCareer(names = {}, rng = Math.random) {
   const potential = generatePotential(rng)
   const stability = bellCurveScore(rng)
 
-  return {
+  const career = {
     lastName,
     firstName,
     fullName: [lastName, firstName].filter(Boolean).join(' '),
@@ -52,6 +53,8 @@ export function createCareer(names = {}, rng = Math.random) {
     notice: '',
     complete: false,
   }
+
+  return { ...career, transferState: initializeTransferState(career, rng) }
 }
 
 export function rerollCareer(career, rng = Math.random) {

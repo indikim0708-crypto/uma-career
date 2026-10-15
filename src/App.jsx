@@ -5,8 +5,9 @@ import { MAX_STAT, STATS } from './data/stats.js'
 import { TURNS } from './data/turns.js'
 import { createCareer, chooseGrowthType, rerollCareer } from './game/createCareer.js'
 import { getCareerEvaluation } from './game/evaluation.js'
-import { advanceCareer, displayStat, finishElementaryEvent, selectElementaryEventChoice } from './game/growth.js'
+import { advanceCareer, displayStat, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from './game/growth.js'
 import { generateRandomUmaName } from './game/nameGenerator.js'
+import { getElementarySchoolById } from './data/schools.js'
 
 const SCREENS = {
   HOME: 'HOME',
@@ -144,6 +145,20 @@ const OUTCOME_LABELS = { GREAT_SUCCESS: '대성공!', SUCCESS: '성공', FAILURE
 const RATING_LABELS = { LOWEST: '성장 미비', LOW: '조용한 성장', NORMAL: '꾸준한 성장', HIGH: '성공적인 성장', VERY_HIGH: '폭풍 성장!' }
 
 function GrowthLog({ log, isLatest }) {
+  if (log.kind === 'TRANSFER') {
+    return (
+      <article className={`transfer-log ${log.specialTransfer ? 'special' : ''}`}>
+        <span>{log.specialTransfer ? '★★★ SPECIAL TRANSFER' : 'TRANSFER'} · {log.periodLabel}</span>
+        <h3>{log.destinationSchoolName}</h3>
+        <p>「{log.selectedChoiceText}」</p>
+        <strong>{log.accepted ? '전학 수락' : '전학 거절'}</strong>
+        {log.accepted
+          ? <div className="school-change"><small>{log.fromSchoolName}</small><b>→</b><small>{log.destinationSchoolName}</small></div>
+          : <p>{log.fromSchoolName}에서 계속 성장하기로 결정했습니다.</p>}
+      </article>
+    )
+  }
+
   return (
     <details className={`log-card ${isLatest ? 'latest' : ''}`} open={isLatest}>
       <summary>
@@ -153,6 +168,7 @@ function GrowthLog({ log, isLatest }) {
       </summary>
       <div className="log-detail">
         <p className="rating-copy">{log.growthRatingText}</p>
+        {log.schoolName && <p className="history-school">{log.schoolName}</p>}
         <div className="history-stats">
           {STATS.map(({ id, label }) => {
             const before = displayStat(log.statsBefore[id])
@@ -172,6 +188,30 @@ function GrowthLog({ log, isLatest }) {
         <footer>컨디션 <span>{log.conditionBefore}</span><b>→</b><strong>{log.conditionAfter}</strong></footer>
       </div>
     </details>
+  )
+}
+
+function TransferModal({ career, onDecision }) {
+  const destination = getElementarySchoolById(career.transferState.destinationSchoolId)
+  if (!destination) return null
+  const isCentral = destination.id === 'central_tracen'
+
+  return (
+    <div className="event-backdrop" role="presentation">
+      <section className={`event-modal transfer-modal ${isCentral ? 'central' : ''}`} role="dialog" aria-modal="true" aria-labelledby="transfer-title">
+        <p className="event-badge">{isCentral ? '★★★ SPECIAL TRANSFER' : 'SPECIAL EVENT'}</p>
+        <h2 id="transfer-title">{isCentral ? destination.name : '스카우트 제안'}</h2>
+        <p className="event-situation">
+          {isCentral
+            ? `전국의 유망주를 대상으로 한 특별 육성 과정에\n${career.fullName}의 이름이 올랐습니다.`
+            : `최근의 기록을 지켜본 ${destination.name}에서\n전학 제안이 도착했습니다.\n\n“더 높은 수준의 환경에서 훈련해보지 않겠습니까?”`}
+        </p>
+        <div className="transfer-actions">
+          <button className="primary-button" type="button" onClick={() => onDecision(true)}><span>{isCentral ? '중앙 트레센으로 간다' : '새로운 환경에 도전한다'}</span><span aria-hidden="true">→</span></button>
+          <button className="secondary-button" type="button" onClick={() => onDecision(false)}>현재 학교에 남는다</button>
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -208,9 +248,9 @@ function EventModal({ event, outcome, onSelect, onContinue }) {
   )
 }
 
-function Playing({ career, onAdvance, onEventChoice, onEventContinue }) {
+function Playing({ career, onAdvance, onEventChoice, onEventContinue, onTransferDecision }) {
   const currentTurn = TURNS[career.turnIndex]
-  const lastLog = career.history[0]
+  const lastLog = career.logs[0]
   const progress = ((career.turnIndex) / TURNS.length) * 100
 
   return (
@@ -234,13 +274,14 @@ function Playing({ career, onAdvance, onEventChoice, onEventContinue }) {
         </section>
 
         <aside className="log-panel">
-          <div className="section-heading"><div><p className="section-kicker">HISTORY</p><h2>최근 성장</h2></div><span>최근 {Math.min(career.logs.length, 3)}개</span></div>
-          {career.history.length > 0 ? career.history.slice(0, 3).map((log, index) => <GrowthLog log={log} isLatest={index === 0} key={log.turn} />) : <div className="empty-log"><p>첫 성장 기록을 기다리고 있습니다.</p></div>}
+          <div className="section-heading"><div><p className="section-kicker">HISTORY</p><h2>최근 기록</h2></div><span>최근 {Math.min(career.history.length, 3)}개</span></div>
+          {career.history.length > 0 ? career.history.slice(0, 3).map((log, index) => <GrowthLog log={log} isLatest={index === 0} key={`${log.kind ?? 'TURN'}-${log.turn}`} />) : <div className="empty-log"><p>첫 성장 기록을 기다리고 있습니다.</p></div>}
         </aside>
         <div className="turn-action">
           <button className="primary-button" type="button" onClick={onAdvance}><span>다음 턴</span><span aria-hidden="true">→</span></button>
         </div>
       </div>
+      {career.transferState?.offered && !career.transferState.resolved && <TransferModal career={career} onDecision={onTransferDecision} />}
       {career.elementaryEventState.pendingEvent && <EventModal event={career.elementaryEventState.pendingEvent} outcome={career.elementaryEventState.pendingOutcome} onSelect={onEventChoice} onContinue={onEventContinue} />}
     </main>
   )
@@ -329,11 +370,13 @@ function App() {
 
   const handleEventContinue = () => setCareer((current) => finishElementaryEvent(current))
 
+  const handleTransferDecision = (accepted) => setCareer((current) => resolveTransferAndStartElementaryTurn(current, accepted))
+
   if (screen === SCREENS.HOME) return <Intro onStart={startNewCareer} />
   if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onRandomName={randomizeName} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
   if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
   if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
-  if (screen === SCREENS.CAREER) return <Playing career={career} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} />
+  if (screen === SCREENS.CAREER) return <Playing career={career} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} />
   if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
   return <Intro onStart={startNewCareer} />
 }

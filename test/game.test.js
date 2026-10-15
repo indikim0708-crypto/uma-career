@@ -9,9 +9,11 @@ import { ELEMENTARY_COMMON_EVENTS } from '../src/data/elementaryEvents.js'
 import { ELEMENTARY_SCHOOL_EVENTS } from '../src/data/schoolEvents.js'
 import { applyEventOutcome, moveCondition, resolveEventChoice } from '../src/game/eventResolver.js'
 import { createElementaryEventState, getElementaryEvent } from '../src/game/eventScheduler.js'
-import { advanceCareer, finishElementaryEvent, selectElementaryEventChoice } from '../src/game/growth.js'
+import { advanceCareer, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from '../src/game/growth.js'
 import { generatePotential } from '../src/game/random.js'
 import { generateRandomUmaName, getValidNameParts } from '../src/game/nameGenerator.js'
+import { ALL_ELEMENTARY_SCHOOLS, CENTRAL_TRACEN_SCHOOL, getElementarySchoolById } from '../src/data/schools.js'
+import { chooseTransferDestination, getCentralTracenChance, initializeTransferState, resolveTransferDecision } from '../src/game/transfer.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -29,6 +31,9 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
   let career = chooseGrowthType({ ...createCareer(rng), ...overrides }, typeId)
   while (!career.complete) {
     career = advanceCareer(career, rng)
+    if (career.transferState?.offered && !career.transferState.resolved) {
+      career = resolveTransferAndStartElementaryTurn(career, false, rng)
+    }
     if (career.elementaryEventState.pendingEvent) {
       career = selectElementaryEventChoice(career, career.elementaryEventState.pendingEvent.choices[0].id, rng)
       career = finishElementaryEvent(career, rng)
@@ -301,4 +306,175 @@ test('condition and stats are clamped to their legal ranges', () => {
   const career = { ...eventCareer({ id: 'mejiro', name: '메지로 초등학교' }), stats: Object.fromEntries(STATS.map(({ id }) => [id, 119])) }
   const applied = applyEventOutcome(career, event, { statChanges: { stamina: 7 }, conditionDelta: 0 })
   assert.equal(applied.stats.stamina, 120)
+})
+
+function makeTransferCareer({ potential = 85, schoolId = 'fuchu_central', destinationSchoolId = 'symboli', grade = 2, offered = false } = {}) {
+  const school = getElementarySchoolById(schoolId)
+  return {
+    ...eventCareer(school),
+    potential,
+    school,
+    turnIndex: grade - 1,
+    transferState: {
+      eligible: potential > 70,
+      scheduled: true,
+      grade,
+      destinationSchoolId,
+      offered,
+      resolved: false,
+      accepted: false,
+      previousSchoolId: null,
+    },
+  }
+}
+
+test('transfer eligibility, one-time scheduling, and grade range follow the rules', () => {
+  const general = getElementarySchoolById('fuchu_central')
+  assert.equal(initializeTransferState({ potential: 65, school: general }, () => 0).scheduled, false)
+
+  const rng = seededRandom(700)
+  const samples = 50_000
+  let scheduled = 0
+  for (let index = 0; index < samples; index += 1) {
+    const state = initializeTransferState({ potential: 75, school: general }, rng)
+    if (state.scheduled) {
+      scheduled += 1
+      assert.ok([2, 3, 4].includes(state.grade))
+    }
+  }
+  assert.ok(Math.abs(scheduled / samples - 0.5) < 0.015)
+})
+
+test('central Tracen offer chance follows potential bands', () => {
+  assert.equal(getCentralTracenChance(79), 0)
+  assert.equal(getCentralTracenChance(80), 0.1)
+  assert.equal(getCentralTracenChance(90), 0.25)
+  assert.equal(getCentralTracenChance(95), 0.5)
+
+  const school = getElementarySchoolById('fuchu_central')
+  const measure = (potential, seed) => {
+    const rng = seededRandom(seed)
+    let central = 0
+    const samples = 30_000
+    for (let index = 0; index < samples; index += 1) {
+      if (chooseTransferDestination({ potential, school }, rng)?.id === 'central_tracen') central += 1
+    }
+    return central / samples
+  }
+  assert.equal(measure(75, 1), 0)
+  assert.ok(Math.abs(measure(85, 2) - 0.1) < 0.015)
+  assert.ok(Math.abs(measure(92, 3) - 0.25) < 0.015)
+  assert.ok(Math.abs(measure(98, 4) - 0.5) < 0.015)
+})
+
+test('transfer destinations are always higher tier and central Tracen is never initially assigned', () => {
+  const rng = seededRandom(818)
+  for (const school of ALL_ELEMENTARY_SCHOOLS.filter(({ id }) => id !== 'central_tracen')) {
+    for (let index = 0; index < 100; index += 1) {
+      const destination = chooseTransferDestination({ potential: 99, school }, rng)
+      if (destination) assert.ok(destination.tier > school.tier)
+    }
+  }
+
+  let career = createCareer(seededRandom(12))
+  for (let index = 0; index < 1_000; index += 1) {
+    assert.notEqual(career.school.id, CENTRAL_TRACEN_SCHOOL.id)
+    career = rerollCareer(career, rng)
+  }
+})
+
+test('accepting changes only the school, declining preserves it, and both resolve the offer once', () => {
+  const accepting = makeTransferCareer({ offered: true })
+  const accepted = resolveTransferDecision(accepting, true, () => 0.99)
+  assert.equal(accepted.school.id, 'symboli')
+  assert.equal(accepted.transferState.previousSchoolId, 'fuchu_central')
+  assert.equal(accepted.transferState.accepted, true)
+  assert.strictEqual(resolveTransferDecision(accepted, false, () => 0), accepted)
+
+  const declining = makeTransferCareer({ offered: true })
+  const declined = resolveTransferDecision(declining, false, () => 0)
+  assert.equal(declined.school.id, 'fuchu_central')
+  assert.equal(declined.transferState.accepted, false)
+  assert.equal(declined.transferState.resolved, true)
+  assert.strictEqual(resolveTransferDecision(declined, true, () => 0), declined)
+})
+
+test('a transfer offer is separate from the regular event in the same grade', () => {
+  let career = makeTransferCareer({ destinationSchoolId: 'central_tracen', offered: false })
+  const before = { ...career.stats }
+  career = advanceCareer(career, () => 0)
+  assert.equal(career.transferState.offered, true)
+  assert.deepEqual(career.stats, before)
+  assert.equal(career.elementaryEventState.pendingEvent, null)
+
+  career = resolveTransferAndStartElementaryTurn(career, true, () => 0)
+  assert.equal(career.school.id, 'central_tracen')
+  assert.ok(career.elementaryEventState.pendingEvent)
+  assert.equal(career.history[0].kind, 'TRANSFER')
+  career = selectElementaryEventChoice(career, 'a', () => 0)
+  career = finishElementaryEvent(career, () => 0.5)
+  assert.equal(career.turnIndex, 2)
+  assert.equal(career.elementaryEventState.completedEventIds.length, 1)
+})
+
+test('accepting cancels the old signature and guarantees the central Tracen chairman signature', () => {
+  const career = {
+    ...makeTransferCareer({ schoolId: 'cap', destinationSchoolId: 'central_tracen', grade: 4, offered: true }),
+    elementaryEventState: {
+      ...createElementaryEventState('cap', () => 0.99),
+      signatureScheduled: true,
+      signatureEventId: 'cap_oguri_return',
+      signatureGrade: 5,
+      completedEventIds: ['common_relay'],
+    },
+  }
+  const accepted = resolveTransferDecision(career, true, () => 0)
+  assert.equal(accepted.elementaryEventState.signatureScheduled, true)
+  assert.equal(accepted.elementaryEventState.signatureEventId, 'tracen_chairman_eye')
+  assert.ok(accepted.elementaryEventState.signatureGrade >= 4 && accepted.elementaryEventState.signatureGrade <= 6)
+  assert.equal(accepted.elementaryEventState.schoolEventCount, 0)
+  assert.deepEqual(accepted.elementaryEventState.completedEventIds, ['common_relay'])
+
+  const declined = resolveTransferDecision(career, false, () => 0)
+  assert.equal(declined.elementaryEventState.signatureEventId, 'cap_oguri_return')
+  assert.equal(declined.elementaryEventState.signatureGrade, 5)
+})
+
+test('central Tracen signature occurs at most once and its school events stay school-specific', () => {
+  const career = {
+    ...makeTransferCareer({ schoolId: 'central_tracen', destinationSchoolId: 'central_tracen' }),
+    school: CENTRAL_TRACEN_SCHOOL,
+    elementaryEventState: {
+      ...createElementaryEventState('central_tracen', () => 0.99),
+      signatureScheduled: true,
+      signatureEventId: 'tracen_chairman_eye',
+      signatureGrade: 4,
+      signatureTriggered: false,
+    },
+  }
+  assert.equal(getElementaryEvent(career, 4, () => 0).id, 'tracen_chairman_eye')
+  const triggered = { ...career, elementaryEventState: { ...career.elementaryEventState, signatureTriggered: true, completedEventIds: ['tracen_chairman_eye'] } }
+  assert.notEqual(getElementaryEvent(triggered, 4, () => 0).id, 'tracen_chairman_eye')
+
+  const cap = eventCareer(getElementarySchoolById('cap'))
+  const capCandidates = ELEMENTARY_SCHOOL_EVENTS.filter(({ schoolId }) => schoolId === cap.school.id)
+  assert.ok(capCandidates.every(({ id }) => !id.startsWith('tracen_')))
+})
+
+test('turn history snapshots the school before and after a transfer', () => {
+  let career = makeTransferCareer({ schoolId: 'cap', destinationSchoolId: 'central_tracen', grade: 2 })
+  career.turnIndex = 0
+  career.transferState.grade = 2
+  career = advanceCareer(career, () => 0.6)
+  career = selectElementaryEventChoice(career, 'a', () => 0.5)
+  career = finishElementaryEvent(career, () => 0.5)
+  assert.equal(career.history[0].schoolName, '캡 초등학교')
+
+  career = advanceCareer(career, () => 0)
+  career = resolveTransferAndStartElementaryTurn(career, true, () => 0)
+  career = selectElementaryEventChoice(career, 'a', () => 0.5)
+  career = finishElementaryEvent(career, () => 0.5)
+  assert.equal(career.history[0].schoolName, '중앙 트레센 초등학교')
+  assert.ok(career.history.some((entry) => entry.kind === 'TRANSFER' && entry.accepted))
+  assert.ok(career.history.some((entry) => entry.kind === 'TURN' && entry.schoolName === '캡 초등학교'))
 })

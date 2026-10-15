@@ -68,6 +68,22 @@ export const ELEMENTARY_SCHOOL_EVENTS = [
     choice('b', '추월이 일어나는 지점을 찾는다', [20, 65, 15], ['모든 추월 지점을 정확히 찾아냈다.', { intelligence: 5, power: 4 }], ['추월의 핵심을 배웠다.', { intelligence: 3, power: 3 }], ['잘못된 지점을 골랐다.', { power: -1 }]),
     choice('c', '전체 레이스의 흐름을 정리한다', [10, 85, 5], ['레이스 전체의 흐름이 한눈에 들어왔다.', { intelligence: 5, speed: 2, stamina: 2 }], ['레이스의 흐름을 정리했다.', { intelligence: 4, stamina: 2 }], ['정리는 했지만 큰 소득은 없었다.', {}]),
   ]),
+
+  schoolEvent('tracen_chairman_eye', 'central_tracen', '이사장의 눈', '중앙 트레센의 이사장이 훈련장을 직접 둘러보다가 캐릭터의 달리기를 유심히 지켜본다. “호오... 재미있는 아이로군요.”', [
+    choice('a', '제 장점을 보여드리겠습니다!', [25, 55, 20], ['가장 빛나는 재능을 완벽하게 보여주었다!', { speed: 3 }, 0, { kind: 'HIGHEST', amount: 7 }], ['자신이 가장 잘하는 것을 확실하게 보여주었다.', {}, 0, { kind: 'HIGHEST', amount: 5 }], ['이사장을 의식한 나머지 평소의 실력을 보여주지 못했다.', {}, 0, { kind: 'HIGHEST', amount: -1 }]),
+    choice('b', '부족한 부분부터 고치겠습니다.', [15, 75, 10], ['약점을 정확히 파악하고 눈에 띄게 개선했다.', { intelligence: 3 }, 0, { kind: 'LOWEST', amount: 7 }], ['부족했던 부분이 확실히 좋아졌다.', {}, 0, { kind: 'LOWEST', amount: 5 }], ['아직 답을 찾으려면 조금 더 시간이 필요할 것 같다.', {}]),
+    choice('c', '전부 잘하는 선수가 되겠습니다.', [10, 80, 10], ['균형 잡힌 성장이 놀라운 수준에 도달했다!', { speed: 3, stamina: 3, power: 3, grit: 3, intelligence: 3 }], ['모든 능력을 고르게 끌어올렸다.', { speed: 2, stamina: 2, power: 2, grit: 2, intelligence: 2 }], ['기대했던 만큼은 아니었지만 기초 능력을 충실히 다졌다.', { speed: 1, stamina: 1, power: 1, grit: 1, intelligence: 1 }]),
+  ], 'SIGNATURE'),
+  schoolEvent('tracen_joint_training', 'central_tracen', '중앙 트레센 특별 합동훈련', '전국에서 선발된 초등부 유망주들이 모여 특별 합동훈련을 시작했다.', [
+    choice('a', '가장 빠른 아이를 따라간다', [25, 50, 25], ['최고 수준의 속도를 끝까지 따라붙었다!', { speed: 6, power: 4 }], ['빠른 상대를 따라가며 좋은 자극을 받았다.', { speed: 4, power: 2 }], ['무리하게 따라가다가 후반에 완전히 지쳐버렸다.', { stamina: -1 }]),
+    choice('b', '가장 오래 버티는 아이를 따라간다', [20, 60, 20], ['긴 훈련에서도 끝까지 한 번도 뒤처지지 않았다!', { stamina: 6, grit: 4 }], ['최고 수준의 지구력 훈련을 끝까지 소화했다.', { stamina: 4, grit: 2 }], ['훈련 강도가 너무 높았다.', {}, -1]),
+    choice('c', '여러 선수의 달리기를 관찰한다', [15, 80, 5], ['여러 유망주의 장점을 자신의 것으로 흡수했다!', { intelligence: 6 }, 0, { kind: 'RANDOM_DISTINCT', amount: 2, count: 2 }], ['다양한 스타일에서 새로운 힌트를 얻었다.', { intelligence: 4 }, 0, { kind: 'RANDOM', amount: 2 }], ['정보가 너무 많아 정리하는 데 실패했다.', {}]),
+  ]),
+  schoolEvent('tracen_mock_race', 'central_tracen', '트레센 모의 레이스', '중앙 트레센의 유망주들이 모여 실전 형식의 모의 레이스를 한다.', [
+    choice('a', '처음부터 선두를 잡는다', [25, 50, 25], ['최고 수준의 경쟁자들을 상대로 끝까지 선두를 지켰다!', { speed: 6, grit: 3 }], ['선두권에서 좋은 레이스를 펼쳤다.', { speed: 4, grit: 2 }], ['초반부터 너무 강하게 달려 후반에 힘이 떨어졌다.', { stamina: -2 }]),
+    choice('b', '중반까지 상대를 지켜본다', [20, 65, 15], ['모든 상대의 움직임을 읽고 완벽한 타이밍에 추월했다!', { intelligence: 5, power: 4 }], ['침착하게 흐름을 읽으며 추월 기회를 잡았다.', { intelligence: 3, power: 3 }], ['지켜보기만 하다가 승부 타이밍을 놓쳤다.', { intelligence: -1 }]),
+    choice('c', '마지막 직선에 모든 것을 건다', [30, 40, 30], ['폭발적인 마지막 스퍼트로 모두를 제쳤다!', { power: 6, grit: 5 }], ['마지막 직선에서 강한 승부를 보여주었다.', { power: 4, grit: 3 }], ['승부를 너무 늦게 시작했다.', {}, -1]),
+  ]),
 ]
 
 export const SIGNATURE_EVENT_IDS = {
@@ -75,4 +91,5 @@ export const SIGNATURE_EVENT_IDS = {
   shadai: 'shadai_special_program',
   cap: 'cap_oguri_return',
   symboli: 'symboli_rudolf_visit',
+  central_tracen: 'tracen_chairman_eye',
 }

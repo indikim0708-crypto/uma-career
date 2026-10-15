@@ -5,6 +5,7 @@ import { weightedPick } from './random.js'
 import { getElementaryEvent } from './eventScheduler.js'
 import { applyEventOutcome, materializeOutcome, resolveEventChoice } from './eventResolver.js'
 import { beginTurnHistory, finalizeTurnHistory } from './history.js'
+import { isTransferOfferDue, markTransferOffered, resolveTransferDecision } from './transfer.js'
 
 export function getPotentialMultiplier(potential) {
   if (potential < 20) return 0.9
@@ -98,13 +99,23 @@ export function finishElementaryEvent(career, rng = Math.random) {
 export function advanceCareer(career, rng = Math.random) {
   if (!career.growthType) throw new Error('Growth type must be selected before advancing.')
   if (career.complete) return career
-  if (TURNS[career.turnIndex].stage === '초등부') return startElementaryTurn(career, rng)
+  if (TURNS[career.turnIndex].stage === '초등부') {
+    if (career.transferState?.offered && !career.transferState.resolved) return career
+    if (isTransferOfferDue(career)) return markTransferOffered(career)
+    return startElementaryTurn(career, rng)
+  }
 
   const turn = TURNS[career.turnIndex]
   const currentTurnHistory = beginTurnHistory(career, turn)
   const { stats, expectedGrowth } = applyBaseGrowth(career, rng)
   currentTurnHistory.statsAfterBase = { ...stats }
   return completeTurn({ ...career, stats, currentTurnHistory }, expectedGrowth, rng)
+}
+
+export function resolveTransferAndStartElementaryTurn(career, accepted, rng = Math.random) {
+  const resolved = resolveTransferDecision(career, accepted, rng)
+  if (resolved === career) return career
+  return startElementaryTurn(resolved, rng)
 }
 
 export function displayStat(value) {

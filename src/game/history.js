@@ -20,8 +20,11 @@ export function getGrowthRating(ratio) {
 
 export function beginTurnHistory(career, turn) {
   return {
+    kind: 'TURN',
     turn: turn.number,
     periodLabel: turn.label,
+    schoolId: turn.stage === '초등부' ? career.school.id : null,
+    schoolName: turn.stage === '초등부' ? career.school.name : `${turn.stage} 과정`,
     statsBefore: { ...career.stats },
     statsAfterBase: null,
     statsAfter: null,

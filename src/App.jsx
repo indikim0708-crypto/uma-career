@@ -20,10 +20,8 @@ function StatGrid({ stats, previousStats = null }) {
         const delta = previous === null ? null : value - previous
         return (
           <div className="stat-row" key={id}>
-            <div className="stat-heading">
-              <span>{label}</span>
-              <strong>{value} <small>/ {MAX_STAT}</small></strong>
-            </div>
+            <span className="stat-label">{label}</span>
+            <strong className="stat-value">{value} <small>/ {MAX_STAT}</small></strong>
             <div className="stat-track" role="meter" aria-label={label} aria-valuemin="0" aria-valuemax={MAX_STAT} aria-valuenow={value}>
               <span style={{ width: `${(value / MAX_STAT) * 100}%` }} />
             </div>
@@ -42,7 +40,7 @@ function Intro({ onStart }) {
       <div className="ambient ambient-gold" aria-hidden="true" />
       <section className="intro-content" aria-labelledby="page-title">
         <p className="eyebrow">THE RACE BEGINS HERE</p>
-        <h1 id="page-title">UMA<br />CAREER</h1>
+        <h1 id="page-title">UMA CAREER</h1>
         <p className="intro-subtitle">우마무스메 커리어 시뮬레이터</p>
         <button className="primary-button" type="button" onClick={onStart}><span>NEW CAREER</span><span aria-hidden="true">→</span></button>
         <p className="intro-note">초등부 1학년부터 고등부 3학년까지 · 24 TURNS</p>
@@ -58,7 +56,7 @@ function Setup({ career, selectedType, onSelect, onBegin, onReroll }) {
       <div className="setup-layout">
         <section className="panel origin-card">
           <p className="section-kicker">01 · ORIGIN</p>
-          <h2>새로운 유망주를<br />발견했습니다.</h2>
+          <h2>새로운 유망주</h2>
           <dl className="profile-list">
             <div><dt>출신 지역</dt><dd>{career.region.name}</dd></div>
             <div><dt>배정 학교</dt><dd>{career.school.name}</dd></div>
@@ -79,10 +77,7 @@ function Setup({ career, selectedType, onSelect, onBegin, onReroll }) {
           <div className="type-grid">
             {GROWTH_TYPES.map((type) => (
               <button className={`type-card ${selectedType === type.id ? 'selected' : ''}`} type="button" key={type.id} onClick={() => onSelect(type.id)} aria-pressed={selectedType === type.id}>
-                <span className="type-number">0{GROWTH_TYPES.indexOf(type) + 1}</span>
-                <span className="type-distance">{type.distance}</span>
-                <strong>{type.name}</strong>
-                <span className="type-description">{type.description}</span>
+                <span className="type-distance">{type.distance}</span><strong>{type.name}</strong>
                 <span className="trait"><small>메인</small>{type.main.join(' / ')}</span>
                 <span className="trait"><small>보조</small>{type.support.join(' / ')}</span>
               </button>
@@ -97,15 +92,15 @@ function Setup({ career, selectedType, onSelect, onBegin, onReroll }) {
   )
 }
 
-function GrowthLog({ log }) {
+function GrowthLog({ log, isLatest }) {
   return (
-    <article className="log-card">
+    <article className={`log-card ${isLatest ? 'latest' : ''}`}>
       <header><span>TURN {String(log.turn).padStart(2, '0')}</span><strong>{log.label}</strong></header>
       <div className="log-stats">
         {STATS.map(({ id, label }) => {
           const before = displayStat(log.before[id])
           const after = displayStat(log.after[id])
-          return <p key={id}><span>{label}</span><span>{before} → <strong>{after}</strong> <em>+{after - before}</em></span></p>
+          return <p key={id}><span>{label}</span><span>{isLatest && <small>{before} → {after}</small>} <em>+{after - before}</em></span></p>
         })}
       </div>
       <footer>컨디션 <span>{log.conditionBefore}</span><b>→</b><strong>{log.conditionAfter}</strong></footer>
@@ -125,19 +120,11 @@ function Playing({ career, onAdvance }) {
 
       <div className="dashboard-layout">
         <section className="career-summary">
-          <p className="section-kicker">CURRENT CHAPTER</p>
+          <div className="chapter-line"><p className="section-kicker">CURRENT CHAPTER</p><span>{currentTurn.number} / {TURNS.length}</span></div>
           <h1>{currentTurn.label}</h1>
-          <div className="summary-meta">
-            <div><span>소속 / 시기</span><strong>{currentTurn.stage === '초등부' ? career.school.name : `${currentTurn.stage} 과정`}</strong></div>
-            <div><span>출신</span><strong>{career.region.name}</strong></div>
-            <div><span>성장 타입</span><strong>{career.growthType.name}</strong></div>
-            <div><span>컨디션</span><strong className={`condition condition-${career.condition}`}>{career.condition}</strong></div>
-          </div>
+          <p className="summary-line">{career.region.name} · {currentTurn.stage === '초등부' ? career.school.name : `${currentTurn.stage} 과정`}</p>
+          <p className="summary-line">{career.growthType.name} · 컨디션 <strong className={`condition condition-${career.condition}`}>{career.condition}</strong></p>
           {career.notice && <div className="milestone"><span>◆</span><p>{career.notice}</p></div>}
-          <div className="turn-action">
-            <button className="primary-button" type="button" onClick={onAdvance}><span>다음 턴</span><span aria-hidden="true">→</span></button>
-            <small>{currentTurn.number} / {TURNS.length} TURN</small>
-          </div>
         </section>
 
         <section className="panel ability-panel">
@@ -146,9 +133,12 @@ function Playing({ career, onAdvance }) {
         </section>
 
         <aside className="log-panel">
-          <div className="section-heading"><div><p className="section-kicker">HISTORY</p><h2>성장 로그</h2></div><span>최근 {Math.min(career.logs.length, 5)}개</span></div>
-          {career.logs.length > 0 ? career.logs.map((log) => <GrowthLog log={log} key={log.turn} />) : <div className="empty-log"><span>01</span><p>첫 성장 기록을<br />기다리고 있습니다.</p></div>}
+          <div className="section-heading"><div><p className="section-kicker">HISTORY</p><h2>최근 성장</h2></div><span>최근 {Math.min(career.logs.length, 3)}개</span></div>
+          {career.logs.length > 0 ? career.logs.slice(0, 3).map((log, index) => <GrowthLog log={log} isLatest={index === 0} key={log.turn} />) : <div className="empty-log"><p>첫 성장 기록을 기다리고 있습니다.</p></div>}
         </aside>
+        <div className="turn-action">
+          <button className="primary-button" type="button" onClick={onAdvance}><span>다음 턴</span><span aria-hidden="true">→</span></button>
+        </div>
       </div>
     </main>
   )
@@ -160,7 +150,7 @@ function Complete({ career, onRestart }) {
       <header className="topbar"><Brand /><span className="phase-label">FINAL REPORT</span></header>
       <div className="result-hero">
         <p className="eyebrow">24 TURNS COMPLETED</p>
-        <h1>CAREER<br />COMPLETE</h1>
+        <h1>CAREER COMPLETE</h1>
         <p>{getCareerEvaluation(career.potential, career.stability)}</p>
       </div>
       <div className="result-layout">

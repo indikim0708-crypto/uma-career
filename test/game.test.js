@@ -11,6 +11,7 @@ import { applyEventOutcome, moveCondition, resolveEventChoice } from '../src/gam
 import { createElementaryEventState, getElementaryEvent } from '../src/game/eventScheduler.js'
 import { advanceCareer, finishElementaryEvent, selectElementaryEventChoice } from '../src/game/growth.js'
 import { generatePotential } from '../src/game/random.js'
+import { generateRandomUmaName, getValidNameParts } from '../src/game/nameGenerator.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -93,6 +94,23 @@ test('potential uses the requested tier distribution and always stays in range',
   }
   assert.ok(Math.abs((counts.high + counts.elite) / samples - 0.1) < 0.006)
   assert.ok(Math.abs(counts.elite / samples - 0.03) < 0.006)
+})
+
+test('random Uma names are non-empty, varied, and always respect the five-character input limit', () => {
+  const rng = seededRandom(300)
+  const generated = new Set()
+
+  for (let index = 0; index < 1_000; index += 1) {
+    const name = generateRandomUmaName(rng)
+    assert.ok(name.lastName)
+    assert.ok(name.firstName)
+    assert.ok([...name.lastName].length <= 5)
+    assert.ok([...name.firstName].length <= 5)
+    generated.add(`${name.lastName} ${name.firstName}`)
+  }
+
+  assert.ok(generated.size > 100)
+  assert.deepEqual(getValidNameParts(['짧은', '여섯글자가넘음']), ['짧은'])
 })
 
 test('career stores a trimmed character name with a five-character limit', () => {

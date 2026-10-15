@@ -6,6 +6,7 @@ import { TURNS } from './data/turns.js'
 import { createCareer, chooseGrowthType, rerollCareer } from './game/createCareer.js'
 import { getCareerEvaluation } from './game/evaluation.js'
 import { advanceCareer, displayStat, finishElementaryEvent, selectElementaryEventChoice } from './game/growth.js'
+import { generateRandomUmaName } from './game/nameGenerator.js'
 
 const SCREENS = {
   HOME: 'HOME',
@@ -58,7 +59,7 @@ function Intro({ onStart }) {
   )
 }
 
-function NameEntry({ names, onChange, onConfirm, onBack }) {
+function NameEntry({ names, onChange, onRandomName, onConfirm, onBack }) {
   const canContinue = Boolean(names.lastName.trim() && names.firstName.trim())
 
   return (
@@ -75,6 +76,7 @@ function NameEntry({ names, onChange, onConfirm, onBack }) {
           </div>
           <p className="field-hint">각각 최대 5글자까지 입력할 수 있습니다.</p>
         </section>
+        <button className="secondary-button random-name-button" type="button" onClick={onRandomName}><span aria-hidden="true">🎲</span> 랜덤 이름</button>
         <button className="primary-button flow-primary" type="submit" disabled={!canContinue}><span>확인</span><span aria-hidden="true">→</span></button>
       </form>
     </main>
@@ -300,6 +302,8 @@ function App() {
     setNames((current) => ({ ...current, [event.target.name]: event.target.value }))
   }
 
+  const randomizeName = () => setNames(generateRandomUmaName())
+
   const confirmName = () => {
     const normalizedNames = {
       lastName: names.lastName.trim(),
@@ -326,7 +330,7 @@ function App() {
   const handleEventContinue = () => setCareer((current) => finishElementaryEvent(current))
 
   if (screen === SCREENS.HOME) return <Intro onStart={startNewCareer} />
-  if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
+  if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onRandomName={randomizeName} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
   if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
   if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
   if (screen === SCREENS.CAREER) return <Playing career={career} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} />

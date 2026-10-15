@@ -93,6 +93,7 @@ button { border: 0; }
 .name-fields input:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232, 202, 105, 0.1); }
 .field-hint { color: #7f7785; font-size: 11px; margin: 10px 0 0; }
 .flow-primary { width: 100%; }
+.random-name-button { min-height: 48px; width: 100%; }
 .profile-list { margin: 0; }
 .profile-list div { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 10px; grid-template-columns: 76px minmax(0, 1fr); padding: 9px 0; }
 .profile-list dt { color: var(--muted); font-size: 12px; }

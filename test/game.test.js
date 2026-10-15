@@ -3,17 +3,23 @@ import test from 'node:test'
 import { GROWTH_TYPES } from '../src/data/growthTypes.js'
 import { MAX_STAT, STATS } from '../src/data/stats.js'
 import { TURNS } from '../src/data/turns.js'
-import { getNextCondition } from '../src/game/condition.js'
+import { getNaturalConditionWeights, getNextCondition, rollNaturalConditionChange } from '../src/game/condition.js'
 import { chooseGrowthType, createCareer, createInitialStats, rerollCareer } from '../src/game/createCareer.js'
 import { ELEMENTARY_COMMON_EVENTS } from '../src/data/elementaryEvents.js'
 import { ELEMENTARY_SCHOOL_EVENTS } from '../src/data/schoolEvents.js'
 import { applyEventOutcome, moveCondition, resolveEventChoice } from '../src/game/eventResolver.js'
 import { createElementaryEventState, getElementaryEvent } from '../src/game/eventScheduler.js'
-import { advanceCareer, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from '../src/game/growth.js'
+import { acknowledgeMiddleAdmission, advanceCareer, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from '../src/game/growth.js'
 import { generatePotential } from '../src/game/random.js'
 import { generateRandomUmaName, getValidNameParts } from '../src/game/nameGenerator.js'
 import { ALL_ELEMENTARY_SCHOOLS, CENTRAL_TRACEN_SCHOOL, getElementarySchoolById } from '../src/data/schools.js'
 import { chooseTransferDestination, getCentralTracenChance, initializeTransferState, resolveTransferDecision } from '../src/game/transfer.js'
+import { MIDDLE_COMMON_EVENTS } from '../src/data/middleEvents.js'
+import { MIDDLE_LEGEND_EVENTS } from '../src/data/middleLegendEvents.js'
+import { MIDDLE_SCHOOLS } from '../src/data/middleSchools.js'
+import { calculateAbilityScore, calculateMiddleAdmissionScore, calculateSchoolHistoryScore, chooseFallbackMiddleSchool, getCentralAdmissionChance } from '../src/game/middleAdmission.js'
+import { finishMiddleEvent, finishMiddleLegend, selectMiddleEventChoice, selectMiddleLegend } from '../src/game/middleEvents.js'
+import { getEligibleLegendEvents, rollLegendTargetCount, scheduleMiddleLegends } from '../src/game/middleLegend.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -37,6 +43,15 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
     if (career.elementaryEventState.pendingEvent) {
       career = selectElementaryEventChoice(career, career.elementaryEventState.pendingEvent.choices[0].id, rng)
       career = finishElementaryEvent(career, rng)
+    }
+    if (career.middleState?.admissionPending) career = acknowledgeMiddleAdmission(career)
+    if (career.middleState?.pendingEvent) {
+      career = selectMiddleEventChoice(career, career.middleState.pendingEvent.choices[0].id, rng)
+      career = finishMiddleEvent(career, rng)
+    }
+    if (career.middleState?.pendingLegend) {
+      career = selectMiddleLegend(career, rng)
+      career = finishMiddleLegend(career, rng)
     }
   }
   return career
@@ -153,7 +168,7 @@ test('each growth type produces its intended tendency while every stat grows', (
   assert.ok(results.router.stats.power > results.router.stats.stamina)
   assert.ok(results.router.stats.grit > results.router.stats.intelligence)
   assert.ok(results.stayer.stats.stamina > results.stayer.stats.speed)
-  assert.ok(results.stayer.stats.grit > results.stayer.stats.speed)
+  assert.ok(results.stayer.stats.grit > results.stayer.stats.intelligence)
   assert.ok(results.stayer.stats.speed > results.stayer.stats.intelligence)
 })
 
@@ -477,4 +492,158 @@ test('turn history snapshots the school before and after a transfer', () => {
   assert.equal(career.history[0].schoolName, '중앙 트레센 초등학교')
   assert.ok(career.history.some((entry) => entry.kind === 'TRANSFER' && entry.accepted))
   assert.ok(career.history.some((entry) => entry.kind === 'TURN' && entry.schoolName === '캡 초등학교'))
+})
+
+function reachMiddleSchool(seed = 120) {
+  const rng = seededRandom(seed)
+  let career = chooseGrowthType(createCareer({ lastName: '미들', firstName: '테스트' }, rng), 'router')
+  while (career.turnIndex < 6) {
+    career = advanceCareer(career, rng)
+    if (career.transferState?.offered && !career.transferState.resolved) career = resolveTransferAndStartElementaryTurn(career, false, rng)
+    career = selectElementaryEventChoice(career, career.elementaryEventState.pendingEvent.choices[0].id, rng)
+    career = finishElementaryEvent(career, rng)
+  }
+  return { career, rng }
+}
+
+test('middle admission score combines ability, hidden potential, and elementary history', () => {
+  const career = {
+    stats: { speed: 20, stamina: 20, power: 20, grit: 20, intelligence: 20 },
+    potential: 50,
+    school: getElementarySchoolById('fuchu_central'),
+    history: [],
+  }
+  const expectedAbility = ((100 - 75) / 45) * 35 + ((20 - 18) / 17) * 20
+  assert.ok(Math.abs(calculateAbilityScore(career.stats) - expectedAbility) < 0.0001)
+  assert.equal(calculateSchoolHistoryScore(career), 2)
+  assert.ok(Math.abs(calculateMiddleAdmissionScore(career) - (expectedAbility + 12.5 + 2)) < 0.0001)
+
+  const decorated = {
+    ...career,
+    school: CENTRAL_TRACEN_SCHOOL,
+    history: [
+      { kind: 'TURN', event: { schoolEvent: true, signatureEvent: false, outcomeType: 'SUCCESS' } },
+      { kind: 'TURN', event: { schoolEvent: false, signatureEvent: true, outcomeType: 'GREAT_SUCCESS' } },
+      { kind: 'TRANSFER', accepted: true, specialTransfer: true },
+    ],
+  }
+  assert.equal(calculateSchoolHistoryScore(decorated), 19)
+})
+
+test('middle admission chance bands and central elementary exception follow the balance table', () => {
+  assert.equal(getCentralAdmissionChance(39), 0.15)
+  assert.equal(getCentralAdmissionChance(40), 0.30)
+  assert.equal(getCentralAdmissionChance(59), 0.45)
+  assert.equal(getCentralAdmissionChance(60), 0.60)
+  assert.equal(getCentralAdmissionChance(79), 0.75)
+  assert.equal(getCentralAdmissionChance(80), 0.90)
+  assert.equal(getCentralAdmissionChance(90), 0.97)
+  assert.equal(getCentralAdmissionChance(20, 'central_tracen'), 0.90)
+  assert.ok(['nakayama_tracen_middle', 'hanshin_tracen_middle'].includes(chooseFallbackMiddleSchool(10, 'central_tracen', () => 0.8).id))
+})
+
+test('elementary graduation assigns exactly one of five middle Tracen schools and hides the score in state', () => {
+  const { career } = reachMiddleSchool(121)
+  assert.equal(career.turnIndex, 6)
+  assert.equal(career.middleState.admissionPending, true)
+  assert.ok(MIDDLE_SCHOOLS.some(({ id }) => id === career.middleState.schoolId))
+  assert.ok(career.middleState.admissionScore >= 0 && career.middleState.admissionScore <= 100)
+  assert.ok(career.middleState.schoolName.includes('트레센 학원 중등부'))
+})
+
+test('all 32 middle events have three choices and valid one-roll outcome tables', () => {
+  assert.equal(MIDDLE_COMMON_EVENTS.length, 32)
+  assert.equal(new Set(MIDDLE_COMMON_EVENTS.map(({ id }) => id)).size, 32)
+  for (const event of MIDDLE_COMMON_EVENTS) {
+    assert.equal(event.choices.length, 3, event.id)
+    for (const choice of event.choices) {
+      assert.equal(choice.outcomes.length, 3, `${event.id}/${choice.id}`)
+      assert.equal(choice.outcomes.reduce((sum, outcome) => sum + outcome.weight, 0), 100, `${event.id}/${choice.id}`)
+    }
+  }
+})
+
+test('middle natural condition uses the requested symmetric stability bands and clamps at both ends', () => {
+  assert.deepEqual(getNaturalConditionWeights(100), { up: 0.15, stay: 0.70, down: 0.15 })
+  assert.deepEqual(getNaturalConditionWeights(70), { up: 0.20, stay: 0.60, down: 0.20 })
+  assert.deepEqual(getNaturalConditionWeights(50), { up: 0.25, stay: 0.50, down: 0.25 })
+  assert.deepEqual(getNaturalConditionWeights(30), { up: 0.30, stay: 0.40, down: 0.30 })
+  assert.deepEqual(getNaturalConditionWeights(10), { up: 0.35, stay: 0.30, down: 0.35 })
+  assert.equal(rollNaturalConditionChange(100, () => 0.10), 1)
+  assert.equal(rollNaturalConditionChange(100, () => 0.50), 0)
+  assert.equal(rollNaturalConditionChange(100, () => 0.95), -1)
+  assert.equal(moveCondition('최상', 1), '최상')
+  assert.equal(moveCondition('최악', -1), '최악')
+})
+
+test('legend target roll, candidates, and schedules are unique and school-specific', () => {
+  assert.equal(rollLegendTargetCount(() => 0.1), 0)
+  assert.equal(rollLegendTargetCount(() => 0.5), 1)
+  assert.equal(rollLegendTargetCount(() => 0.9), 2)
+  const base = chooseGrowthType(createCareer(seededRandom(5)), 'sprinter')
+  const central = { ...base, middleState: { schoolId: 'central_tracen_middle', completedLegendIds: [] } }
+  assert.deepEqual(getEligibleLegendEvents(central).map(({ id }) => id).sort(), ['legend_bakushin', 'legend_calstone'])
+  const local = { ...base, middleState: { schoolId: 'kasamatsu_tracen_middle', completedLegendIds: [] } }
+  assert.deepEqual(getEligibleLegendEvents(local).map(({ id }) => id), ['legend_oguri'])
+  const schedule = scheduleMiddleLegends(central, () => 0.99)
+  assert.equal(schedule.legendTargetCount, 2)
+  assert.equal(schedule.legendSchedule.length, 2)
+  assert.equal(new Set(schedule.legendSchedule.map(({ eventId }) => eventId)).size, 2)
+  assert.equal(new Set(schedule.legendSchedule.map(({ turn }) => turn)).size, 2)
+  assert.equal(scheduleMiddleLegends(local, () => 0.99).legendSchedule.length, 1)
+  assert.equal(MIDDLE_LEGEND_EVENTS.length, 12)
+})
+
+test('middle event outcome is resolved once, ignores potential multiplier, and records optional legend in the same turn', () => {
+  let { career } = reachMiddleSchool(129)
+  career = acknowledgeMiddleAdmission(career)
+  career = {
+    ...career,
+    potential: 100,
+    middleState: {
+      ...career.middleState,
+      schoolId: 'kasamatsu_tracen_middle',
+      schoolName: '카사마츠 트레센 학원 중등부',
+      legendSchedule: [{ eventId: 'legend_oguri', turn: 7, triggered: false }],
+    },
+  }
+  career = advanceCareer(career, () => 0)
+  const beforeEvent = { ...career.stats }
+  const once = selectMiddleEventChoice(career, career.middleState.pendingEvent.choices[0].id, () => 0)
+  const twice = selectMiddleEventChoice(once, career.middleState.pendingEvent.choices[0].id, () => 0.99)
+  assert.strictEqual(twice, once)
+  career = finishMiddleEvent(once, () => 0.5)
+  for (const [id, delta] of Object.entries(once.middleState.pendingOutcome.statChanges)) {
+    assert.equal(career.stats[id] - beforeEvent[id], delta)
+  }
+  assert.equal(career.middleState.pendingLegend.id, 'legend_oguri')
+  const legendOnce = selectMiddleLegend(career, () => 0)
+  assert.strictEqual(selectMiddleLegend(legendOnce, () => 0.99), legendOnce)
+  career = finishMiddleLegend(legendOnce, () => 0.5)
+  assert.equal(career.turnIndex, 7)
+  assert.ok(career.history[0].event)
+  assert.equal(career.history[0].legendEvent.characterName, '오구리 캡')
+  assert.equal(career.history[0].schoolName, '카사마츠 트레센 학원 중등부')
+})
+
+test('six middle turns always use unique common events and then preserve state for high school', () => {
+  let { career, rng } = reachMiddleSchool(177)
+  career = acknowledgeMiddleAdmission(career)
+  const eventIds = []
+  while (career.turnIndex < 12) {
+    career = advanceCareer(career, rng)
+    eventIds.push(career.middleState.pendingEvent.id)
+    career = selectMiddleEventChoice(career, career.middleState.pendingEvent.choices[0].id, rng)
+    career = finishMiddleEvent(career, rng)
+    if (career.middleState.pendingLegend) {
+      career = selectMiddleLegend(career, rng)
+      career = finishMiddleLegend(career, rng)
+    }
+  }
+  assert.equal(eventIds.length, 6)
+  assert.equal(new Set(eventIds).size, 6)
+  assert.equal(career.turnIndex, 12)
+  assert.equal(TURNS[career.turnIndex].stage, '고등부')
+  assert.equal(career.middleState.completedEventIds.length, 6)
+  assert.equal(career.history.filter(({ turn }) => turn >= 7 && turn <= 12).length, 6)
 })

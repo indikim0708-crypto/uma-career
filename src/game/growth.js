@@ -6,6 +6,9 @@ import { getElementaryEvent } from './eventScheduler.js'
 import { applyEventOutcome, materializeOutcome, resolveEventChoice } from './eventResolver.js'
 import { beginTurnHistory, finalizeTurnHistory } from './history.js'
 import { isTransferOfferDue, markTransferOffered, resolveTransferDecision } from './transfer.js'
+import { assignMiddleSchool } from './middleAdmission.js'
+import { scheduleMiddleLegends } from './middleLegend.js'
+import { applyMiddleNaturalCondition, chooseMiddleEvent } from './middleEvents.js'
 
 export function getPotentialMultiplier(potential) {
   if (potential < 20) return 0.9
@@ -22,7 +25,7 @@ function getMilestone(completedTurnIndex) {
   return ''
 }
 
-function applyBaseGrowth(career, rng) {
+export function applyBaseGrowth(career, rng) {
   const turn = TURNS[career.turnIndex]
   const growth = Object.fromEntries(STATS.map(({ id }) => [id, turn.baseGrowth]))
 
@@ -42,12 +45,35 @@ function completeTurn(career, expectedGrowth, rng, eventDetails = {}) {
   let next = { ...career, condition: nextCondition }
   next = finalizeTurnHistory(next, { ...eventDetails, expectedGrowth, rng })
   const isComplete = career.turnIndex === TURNS.length - 1
-  return {
+  let completed = {
     ...next,
     turnIndex: isComplete ? career.turnIndex : career.turnIndex + 1,
     notice: isComplete ? '' : getMilestone(career.turnIndex),
     complete: isComplete,
   }
+  if (career.turnIndex === 5) {
+    const admission = assignMiddleSchool(completed, rng)
+    const middleState = {
+      schoolId: admission.school.id,
+      schoolName: admission.school.displayName,
+      admissionScore: admission.admissionScore,
+      centralAdmissionChance: admission.centralAdmissionChance,
+      centralAdmissionPassed: admission.centralAdmissionPassed,
+      admissionPending: true,
+      completedEventIds: [],
+      legendTargetCount: 0,
+      legendScheduled: false,
+      legendSchedule: [],
+      completedLegendIds: [],
+      pendingEvent: null,
+      pendingOutcome: null,
+      pendingLegend: null,
+      pendingLegendOutcome: null,
+    }
+    completed = { ...completed, middleState }
+    completed.middleState = { ...middleState, ...scheduleMiddleLegends(completed, rng) }
+  }
+  return completed
 }
 
 export function startElementaryTurn(career, rng = Math.random) {
@@ -105,11 +131,37 @@ export function advanceCareer(career, rng = Math.random) {
     return startElementaryTurn(career, rng)
   }
 
+  if (TURNS[career.turnIndex].stage === '중등부') {
+    if (career.middleState?.admissionPending || career.middleState?.pendingEvent || career.middleState?.pendingLegend) return career
+    const turn = TURNS[career.turnIndex]
+    const currentTurnHistory = beginTurnHistory(career, turn)
+    const conditioned = applyMiddleNaturalCondition(career, rng)
+    currentTurnHistory.naturalConditionDelta = conditioned.naturalConditionDelta
+    const { stats, expectedGrowth } = applyBaseGrowth(conditioned, rng)
+    currentTurnHistory.statsAfterBase = { ...stats }
+    currentTurnHistory.expectedGrowth = expectedGrowth
+    return {
+      ...conditioned,
+      stats,
+      currentTurnHistory,
+      middleState: {
+        ...conditioned.middleState,
+        pendingEvent: chooseMiddleEvent(conditioned, rng),
+        pendingOutcome: null,
+      },
+    }
+  }
+
   const turn = TURNS[career.turnIndex]
   const currentTurnHistory = beginTurnHistory(career, turn)
   const { stats, expectedGrowth } = applyBaseGrowth(career, rng)
   currentTurnHistory.statsAfterBase = { ...stats }
   return completeTurn({ ...career, stats, currentTurnHistory }, expectedGrowth, rng)
+}
+
+export function acknowledgeMiddleAdmission(career) {
+  if (!career.middleState?.admissionPending) return career
+  return { ...career, middleState: { ...career.middleState, admissionPending: false } }
 }
 
 export function resolveTransferAndStartElementaryTurn(career, accepted, rng = Math.random) {

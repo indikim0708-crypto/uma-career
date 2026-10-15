@@ -241,6 +241,24 @@ button { border: 0; }
 .transfer-actions { display: grid; gap: 8px; }
 .transfer-actions .primary-button, .transfer-actions .secondary-button { min-height: 48px; width: 100%; }
 
+.admission-modal { border-color: var(--gold); text-align: center; }
+.admission-emblem { color: var(--gold); font-size: 28px; margin: 6px 0 12px; text-shadow: 0 0 20px rgba(232, 202, 105, 0.55); }
+.admission-result { font: 700 25px Georgia, serif; margin: 10px 0 16px; }
+.admission-result.passed { color: var(--gold); }
+.admission-result.failed { color: #a9a0ae; }
+.admission-destination { background: #121015; border: 1px solid var(--line); display: grid; gap: 6px; margin: 0 0 14px; padding: 12px; }
+.admission-destination span { color: var(--muted); font-size: 10px; letter-spacing: 0.08em; }
+.admission-destination strong { color: #f4edf8; font-size: 14px; overflow-wrap: anywhere; }
+
+.legend-modal { border-color: var(--gold); box-shadow: 0 0 32px rgba(232, 202, 105, 0.2), 0 18px 60px rgba(0, 0, 0, 0.7); text-align: center; }
+.legend-portrait { aspect-ratio: 1; background: #121015; border: 1px solid rgba(232, 202, 105, 0.5); display: block; margin: 0 auto 10px; max-width: 200px; object-fit: cover; object-position: center; width: min(52vw, 200px); }
+.legend-name { color: var(--gold); font-size: 12px; font-weight: 800; letter-spacing: 0.08em; margin: 0 0 6px; }
+.legend-modal .event-situation { text-align: left; }
+.legend-history { background: linear-gradient(145deg, rgba(94, 67, 25, 0.22), rgba(34, 27, 39, 0.65)); border-color: var(--gold); }
+.legend-history > strong { color: var(--gold); display: block; font-size: 11px; margin-bottom: 5px; }
+.history-legend-effects { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 7px; }
+.history-legend-effects small { color: var(--gold); font-size: 10px; font-weight: 800; }
+
 .turn-action {
   background: linear-gradient(to top, var(--bg) 72%, rgba(21, 20, 25, 0));
   bottom: 0;

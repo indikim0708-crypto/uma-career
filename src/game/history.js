@@ -19,17 +19,19 @@ export function getGrowthRating(ratio) {
 }
 
 export function beginTurnHistory(career, turn) {
+  const isMiddle = turn.stage === '중등부'
   return {
     kind: 'TURN',
     turn: turn.number,
     periodLabel: turn.label,
-    schoolId: turn.stage === '초등부' ? career.school.id : null,
-    schoolName: turn.stage === '초등부' ? career.school.name : `${turn.stage} 과정`,
+    schoolId: turn.stage === '초등부' ? career.school.id : isMiddle ? career.middleState?.schoolId : null,
+    schoolName: turn.stage === '초등부' ? career.school.name : isMiddle ? career.middleState?.schoolName : `${turn.stage} 과정`,
     statsBefore: { ...career.stats },
     statsAfterBase: null,
     statsAfter: null,
     baseGrowth: {},
     eventGrowth: {},
+    legendGrowth: {},
     totalGrowth: {},
     expectedGrowth: 0,
     actualGrowth: 0,
@@ -42,10 +44,12 @@ export function beginTurnHistory(career, turn) {
     eventConditionDelta: 0,
     naturalConditionDelta: 0,
     event: null,
+    legendEvent: null,
+    legendConditionDelta: 0,
   }
 }
 
-export function finalizeTurnHistory(career, { event = null, choice = null, outcome = null, expectedGrowth, rng = Math.random }) {
+export function finalizeTurnHistory(career, { event = null, choice = null, outcome = null, expectedGrowth, rng = Math.random, preserveNaturalCondition = false }) {
   const history = structuredClone(career.currentTurnHistory)
   history.statsAfter = { ...career.stats }
   history.conditionAfter = career.condition
@@ -56,7 +60,9 @@ export function finalizeTurnHistory(career, { event = null, choice = null, outco
   history.growthRatingText = randomChoice(RATING_TEXT[history.growthRating], rng)
   for (const { id } of STATS) {
     history.baseGrowth[id] = history.statsAfterBase[id] - history.statsBefore[id]
-    history.eventGrowth[id] = history.statsAfter[id] - history.statsAfterBase[id]
+    const statsAfterEvent = history.statsAfterEvent ?? history.statsAfter
+    history.eventGrowth[id] = statsAfterEvent[id] - history.statsAfterBase[id]
+    history.legendGrowth[id] = history.statsAfter[id] - statsAfterEvent[id]
     history.totalGrowth[id] = history.statsAfter[id] - history.statsBefore[id]
   }
   if (event) {
@@ -75,6 +81,8 @@ export function finalizeTurnHistory(career, { event = null, choice = null, outco
       conditionDelta: outcome.conditionDelta,
     }
   }
-  history.naturalConditionDelta = CONDITIONS.indexOf(history.conditionAfter) - CONDITIONS.indexOf(history.conditionAfterEvent)
+  if (!preserveNaturalCondition) {
+    history.naturalConditionDelta = CONDITIONS.indexOf(history.conditionAfter) - CONDITIONS.indexOf(history.conditionAfterEvent)
+  }
   return { ...career, history: [history, ...(career.history ?? [])], logs: [history, ...(career.logs ?? [])].slice(0, 5), currentTurnHistory: null }
 }

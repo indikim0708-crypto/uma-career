@@ -29,9 +29,14 @@ export function resolveEventChoice(event, choiceId, rng = Math.random) {
   return weightedRandom(choice.outcomes, rng)
 }
 
-function effectStats(stats, effect, rng) {
+function growthStatIds(growthType, key) {
+  const labels = growthType?.[key] ?? []
+  return STATS.filter(({ label }) => labels.includes(label)).map(({ id }) => id)
+}
+
+function effectStats(stats, effect, rng, growthType) {
   if (!effect) return {}
-  const candidates = STATS.map(({ id }) => id)
+  const candidates = STATS.map(({ id }) => id).filter((id) => !(effect.exclude ?? []).includes(id))
   if (effect.kind === 'HIGHEST' || effect.kind === 'LOWEST') {
     const targetValue = effect.kind === 'HIGHEST'
       ? Math.max(...candidates.map((id) => stats[id]))
@@ -50,13 +55,21 @@ function effectStats(stats, effect, rng) {
     }
     return changes
   }
+  if (effect.kind === 'GROWTH_MAIN' || effect.kind === 'GROWTH_SUPPORT') {
+    const key = effect.kind === 'GROWTH_MAIN' ? 'main' : 'support'
+    const growthCandidates = growthStatIds(growthType, key)
+    return growthCandidates.length ? { [randomChoice(growthCandidates, rng)]: effect.amount } : {}
+  }
   return {}
 }
 
-export function materializeOutcome(outcome, stats, rng = Math.random) {
+export function materializeOutcome(outcome, stats, rng = Math.random, growthType = null) {
   const statChanges = { ...(outcome.statChanges ?? {}) }
-  for (const [stat, amount] of Object.entries(effectStats(stats, outcome.effect, rng))) {
-    statChanges[stat] = (statChanges[stat] ?? 0) + amount
+  const effects = [...(outcome.effects ?? []), ...(outcome.effect ? [outcome.effect] : [])]
+  for (const effect of effects) {
+    for (const [stat, amount] of Object.entries(effectStats(stats, effect, rng, growthType))) {
+      statChanges[stat] = (statChanges[stat] ?? 0) + amount
+    }
   }
   return { type: outcome.type, text: outcome.text, statChanges, conditionDelta: outcome.conditionDelta ?? 0 }
 }

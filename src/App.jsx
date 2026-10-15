@@ -5,7 +5,8 @@ import { MAX_STAT, STATS } from './data/stats.js'
 import { TURNS } from './data/turns.js'
 import { createCareer, chooseGrowthType, rerollCareer } from './game/createCareer.js'
 import { getCareerEvaluation } from './game/evaluation.js'
-import { advanceCareer, displayStat, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from './game/growth.js'
+import { acknowledgeMiddleAdmission, advanceCareer, displayStat, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from './game/growth.js'
+import { finishMiddleEvent, finishMiddleLegend, selectMiddleEventChoice, selectMiddleLegend } from './game/middleEvents.js'
 import { generateRandomUmaName } from './game/nameGenerator.js'
 import { getElementarySchoolById } from './data/schools.js'
 
@@ -163,7 +164,7 @@ function GrowthLog({ log, isLatest }) {
     <details className={`log-card ${isLatest ? 'latest' : ''}`} open={isLatest}>
       <summary>
         <span className="log-turn">TURN {String(log.turn).padStart(2, '0')}</span>
-        <span className="log-summary-main"><strong>{log.periodLabel}</strong><em>★ {RATING_LABELS[log.growthRating]}</em></span>
+        <span className="log-summary-main"><strong>{log.periodLabel}</strong><em>★ {RATING_LABELS[log.growthRating]} {log.legendEvent ? '· ★ LEGEND' : ''}</em></span>
         <span className="log-chevron" aria-hidden="true">⌄</span>
       </summary>
       <div className="log-detail">
@@ -183,6 +184,18 @@ function GrowthLog({ log, isLatest }) {
             <h3>{log.event.eventName} · {OUTCOME_LABELS[log.event.outcomeType]}</h3>
             <p>{log.event.situation}</p>
             <dl><div><dt>선택</dt><dd>「{log.event.selectedChoiceText}」</dd></div><div><dt>결과</dt><dd>{log.event.outcomeText}</dd></div></dl>
+          </section>
+        )}
+        {log.legendEvent && (
+          <section className="history-event legend-history">
+            <span>★ LEGEND EVENT</span>
+            <h3>{log.legendEvent.characterName} · {log.legendEvent.title}</h3>
+            <strong>{OUTCOME_LABELS[log.legendEvent.outcomeType]}</strong>
+            <p>{log.legendEvent.outcomeText}</p>
+            <div className="history-legend-effects">
+              {Object.entries(log.legendEvent.statChanges).map(([id, amount]) => <small key={id}>{STATS.find((stat) => stat.id === id)?.label} {amount >= 0 ? '+' : ''}{amount}</small>)}
+              {log.legendEvent.conditionDelta !== 0 && <small>컨디션 {log.legendEvent.conditionDelta > 0 ? '상승' : '하락'}</small>}
+            </div>
           </section>
         )}
         <footer>컨디션 <span>{log.conditionBefore}</span><b>→</b><strong>{log.conditionAfter}</strong></footer>
@@ -248,7 +261,59 @@ function EventModal({ event, outcome, onSelect, onContinue }) {
   )
 }
 
-function Playing({ career, onAdvance, onEventChoice, onEventContinue, onTransferDecision }) {
+function AdmissionModal({ career, onContinue }) {
+  const passed = career.middleState.centralAdmissionPassed
+  return (
+    <div className="event-backdrop" role="presentation">
+      <section className="event-modal admission-modal" role="dialog" aria-modal="true" aria-labelledby="admission-title">
+        <p className="event-badge">MIDDLE SCHOOL ADMISSION</p>
+        <div className="admission-emblem" aria-hidden="true">◆</div>
+        <h2 id="admission-title">중앙 트레센 학원</h2>
+        <p className={`admission-result ${passed ? 'passed' : 'failed'}`}>{passed ? '합격' : '불합격'}</p>
+        {!passed && <p className="admission-destination"><span>최종 진학</span><strong>{career.middleState.schoolName}</strong></p>}
+        {passed && <p className="admission-destination"><span>최종 진학</span><strong>중앙 트레센 학원 중등부</strong></p>}
+        <button className="primary-button event-continue" type="button" onClick={onContinue}><span>중등부로 진학</span><span aria-hidden="true">→</span></button>
+      </section>
+    </div>
+  )
+}
+
+function LegendEventModal({ event, outcome, onSelect, onContinue }) {
+  return (
+    <div className="event-backdrop" role="presentation">
+      <section className="event-modal legend-modal" role="dialog" aria-modal="true" aria-labelledby="legend-title">
+        <p className="event-badge">★ LEGEND EVENT</p>
+        <img
+          className="legend-portrait"
+          src={event.portrait}
+          alt={`${event.characterName} 얼굴 이미지`}
+          onError={(imageEvent) => { imageEvent.currentTarget.onerror = null; imageEvent.currentTarget.src = '/assets/legends/placeholder.svg' }}
+        />
+        <p className="legend-name">{event.characterName}</p>
+        {!outcome ? (
+          <>
+            <h2 id="legend-title">{event.title}</h2>
+            <p className="event-situation">{event.situation}</p>
+            <div className="event-choices"><button type="button" onClick={onSelect} disabled={Boolean(outcome)}>{event.choices[0].text}<span aria-hidden="true">→</span></button></div>
+          </>
+        ) : (
+          <div className="event-result">
+            <p className={`outcome outcome-${outcome.type}`}>{outcome.type === 'GREAT_SUCCESS' ? '★ ' : ''}{OUTCOME_LABELS[outcome.type]}</p>
+            <h2 id="legend-title">{event.title}</h2>
+            <p className="outcome-text">{outcome.text}</p>
+            <div className="outcome-effects">
+              {Object.entries(outcome.statChanges).map(([id, amount]) => <span key={id}>{STATS.find((stat) => stat.id === id)?.label} +{amount}</span>)}
+              {outcome.conditionDelta !== 0 && <span>컨디션 +{outcome.conditionDelta}</span>}
+            </div>
+            <button className="primary-button event-continue" type="button" onClick={onContinue}><span>계속</span><span aria-hidden="true">→</span></button>
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function Playing({ career, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue }) {
   const currentTurn = TURNS[career.turnIndex]
   const lastLog = career.logs[0]
   const progress = ((career.turnIndex) / TURNS.length) * 100
@@ -263,7 +328,7 @@ function Playing({ career, onAdvance, onEventChoice, onEventContinue, onTransfer
           <div className="chapter-line"><p className="section-kicker">CURRENT CHAPTER</p><span>{currentTurn.number} / {TURNS.length}</span></div>
           <p className="character-name">{career.fullName}</p>
           <h1>{currentTurn.label}</h1>
-          <p className="summary-line">{career.region.name} · {currentTurn.stage === '초등부' ? career.school.name : `${currentTurn.stage} 과정`}</p>
+          <p className="summary-line">{career.region.name} · {currentTurn.stage === '초등부' ? career.school.name : currentTurn.stage === '중등부' ? career.middleState.schoolName : `${currentTurn.stage} 과정`}</p>
           <p className="summary-line">{career.growthType.name} · 컨디션 <strong className={`condition condition-${career.condition}`}>{career.condition}</strong></p>
           {career.notice && <div className="milestone"><span>◆</span><p>{career.notice}</p></div>}
         </section>
@@ -283,6 +348,9 @@ function Playing({ career, onAdvance, onEventChoice, onEventContinue, onTransfer
       </div>
       {career.transferState?.offered && !career.transferState.resolved && <TransferModal career={career} onDecision={onTransferDecision} />}
       {career.elementaryEventState.pendingEvent && <EventModal event={career.elementaryEventState.pendingEvent} outcome={career.elementaryEventState.pendingOutcome} onSelect={onEventChoice} onContinue={onEventContinue} />}
+      {career.middleState?.admissionPending && <AdmissionModal career={career} onContinue={onAdmissionContinue} />}
+      {career.middleState?.pendingEvent && <EventModal event={career.middleState.pendingEvent} outcome={career.middleState.pendingOutcome} onSelect={onMiddleEventChoice} onContinue={onMiddleEventContinue} />}
+      {career.middleState?.pendingLegend && <LegendEventModal event={career.middleState.pendingLegend} outcome={career.middleState.pendingLegendOutcome} onSelect={onLegendSelect} onContinue={onLegendContinue} />}
     </main>
   )
 }
@@ -372,11 +440,17 @@ function App() {
 
   const handleTransferDecision = (accepted) => setCareer((current) => resolveTransferAndStartElementaryTurn(current, accepted))
 
+  const handleAdmissionContinue = () => setCareer((current) => acknowledgeMiddleAdmission(current))
+  const handleMiddleEventChoice = (choiceId) => setCareer((current) => selectMiddleEventChoice(current, choiceId))
+  const handleMiddleEventContinue = () => setCareer((current) => finishMiddleEvent(current))
+  const handleLegendSelect = () => setCareer((current) => selectMiddleLegend(current))
+  const handleLegendContinue = () => setCareer((current) => finishMiddleLegend(current))
+
   if (screen === SCREENS.HOME) return <Intro onStart={startNewCareer} />
   if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onRandomName={randomizeName} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
   if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
   if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
-  if (screen === SCREENS.CAREER) return <Playing career={career} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} />
+  if (screen === SCREENS.CAREER) return <Playing career={career} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} />
   if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
   return <Intro onStart={startNewCareer} />
 }

@@ -2,7 +2,7 @@ import { GROWTH_TYPES } from '../data/growthTypes.js'
 import { REGIONS } from '../data/regions.js'
 import { ELEMENTARY_SCHOOLS } from '../data/schools.js'
 import { STATS } from '../data/stats.js'
-import { bellCurveScore, randomIndex, weightedPick } from './random.js'
+import { bellCurveScore, generatePotential, randomIndex, weightedPick } from './random.js'
 import { createElementaryEventState } from './eventScheduler.js'
 
 const INITIAL_STAT_WEIGHTS = { 8: 0.1, 9: 0.2, 10: 0.4, 11: 0.2, 12: 0.1 }
@@ -29,7 +29,7 @@ export function createCareer(names = {}, rng = Math.random) {
   const region = REGIONS[randomIndex(REGIONS.length, rng)]
   const school = assignElementarySchool(region.id, rng)
   const initialStats = createInitialStats(rng)
-  const potential = bellCurveScore(rng)
+  const potential = generatePotential(rng)
   const stability = bellCurveScore(rng)
 
   return {

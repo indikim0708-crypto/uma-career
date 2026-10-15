@@ -10,6 +10,7 @@ import { ELEMENTARY_SCHOOL_EVENTS } from '../src/data/schoolEvents.js'
 import { applyEventOutcome, moveCondition, resolveEventChoice } from '../src/game/eventResolver.js'
 import { createElementaryEventState, getElementaryEvent } from '../src/game/eventScheduler.js'
 import { advanceCareer, finishElementaryEvent, selectElementaryEventChoice } from '../src/game/growth.js'
+import { generatePotential } from '../src/game/random.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -62,12 +63,36 @@ test('initial stats stay within 8-12 and follow the requested weighted distribut
 })
 
 test('potential and stability are generated independently from separate random samples', () => {
-  const values = [0.2, ...Array(6).fill(0.5), ...Array(6).fill(0.2), ...Array(6).fill(0.8)]
+  const values = [0.2, 0.2, ...Array(5).fill(0.5), 0.95, 0.5, ...Array(6).fill(0.2), 0.99]
   let index = 0
   const career = createCareer(() => values[index++] ?? 0.5)
-  assert.equal(career.potential, 20)
-  assert.equal(career.stability, 80)
+  assert.equal(career.potential, 87)
+  assert.equal(career.stability, 20)
   assert.notEqual(career.potential, career.stability)
+})
+
+test('potential uses the requested tier distribution and always stays in range', () => {
+  const rng = seededRandom(100_000)
+  const counts = { low: 0, lowerMiddle: 0, middle: 0, upperMiddle: 0, high: 0, elite: 0 }
+  const samples = 100_000
+
+  for (let index = 0; index < samples; index += 1) {
+    const potential = generatePotential(rng)
+    assert.ok(potential >= 0 && potential <= 100)
+    if (potential <= 19) counts.low += 1
+    else if (potential <= 39) counts.lowerMiddle += 1
+    else if (potential <= 59) counts.middle += 1
+    else if (potential <= 79) counts.upperMiddle += 1
+    else if (potential <= 94) counts.high += 1
+    else counts.elite += 1
+  }
+
+  const expected = { low: 0.1, lowerMiddle: 0.2, middle: 0.3, upperMiddle: 0.3, high: 0.07, elite: 0.03 }
+  for (const [tier, probability] of Object.entries(expected)) {
+    assert.ok(Math.abs(counts[tier] / samples - probability) < 0.006, `${tier}: ${counts[tier] / samples}`)
+  }
+  assert.ok(Math.abs((counts.high + counts.elite) / samples - 0.1) < 0.006)
+  assert.ok(Math.abs(counts.elite / samples - 0.03) < 0.006)
 })
 
 test('career stores a trimmed character name with a five-character limit', () => {

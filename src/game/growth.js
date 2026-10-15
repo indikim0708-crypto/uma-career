@@ -2,6 +2,9 @@ import { MAX_STAT, STATS } from '../data/stats.js'
 import { TURNS } from '../data/turns.js'
 import { getNextCondition } from './condition.js'
 import { weightedPick } from './random.js'
+import { getElementaryEvent } from './eventScheduler.js'
+import { applyEventOutcome, materializeOutcome, resolveEventChoice } from './eventResolver.js'
+import { beginTurnHistory, finalizeTurnHistory } from './history.js'
 
 export function getPotentialMultiplier(potential) {
   if (potential < 20) return 0.9
@@ -18,10 +21,7 @@ function getMilestone(completedTurnIndex) {
   return ''
 }
 
-export function advanceCareer(career, rng = Math.random) {
-  if (!career.growthType) throw new Error('Growth type must be selected before advancing.')
-  if (career.complete) return career
-
+function applyBaseGrowth(career, rng) {
   const turn = TURNS[career.turnIndex]
   const growth = Object.fromEntries(STATS.map(({ id }) => [id, turn.baseGrowth]))
 
@@ -30,30 +30,81 @@ export function advanceCareer(career, rng = Math.random) {
   }
 
   const multiplier = getPotentialMultiplier(career.potential)
-  const before = { ...career.stats }
   const stats = Object.fromEntries(
-    STATS.map(({ id }) => [id, Math.min(MAX_STAT, before[id] + growth[id] * multiplier)]),
+    STATS.map(({ id }) => [id, Math.min(MAX_STAT, career.stats[id] + growth[id] * multiplier)]),
   )
-  const nextCondition = getNextCondition(career.condition, career.stability, rng)
-  const log = {
-    turn: turn.number,
-    label: turn.label,
-    before,
-    after: stats,
-    conditionBefore: career.condition,
-    conditionAfter: nextCondition,
-  }
-  const isComplete = career.turnIndex === TURNS.length - 1
+  return { stats, expectedGrowth: (turn.baseGrowth * STATS.length + turn.bonusPoints) * multiplier }
+}
 
+function completeTurn(career, expectedGrowth, rng, eventDetails = {}) {
+  const nextCondition = getNextCondition(career.condition, career.stability, rng)
+  let next = { ...career, condition: nextCondition }
+  next = finalizeTurnHistory(next, { ...eventDetails, expectedGrowth, rng })
+  const isComplete = career.turnIndex === TURNS.length - 1
   return {
-    ...career,
-    stats,
-    condition: nextCondition,
+    ...next,
     turnIndex: isComplete ? career.turnIndex : career.turnIndex + 1,
-    logs: [log, ...career.logs].slice(0, 5),
     notice: isComplete ? '' : getMilestone(career.turnIndex),
     complete: isComplete,
   }
+}
+
+export function startElementaryTurn(career, rng = Math.random) {
+  if (career.complete || career.elementaryEventState.pendingEvent) return career
+  const turn = TURNS[career.turnIndex]
+  if (turn.stage !== '초등부') return career
+  const currentTurnHistory = beginTurnHistory(career, turn)
+  const { stats, expectedGrowth } = applyBaseGrowth(career, rng)
+  currentTurnHistory.statsAfterBase = { ...stats }
+  currentTurnHistory.expectedGrowth = expectedGrowth
+  const pendingEvent = getElementaryEvent(career, career.turnIndex + 1, rng)
+  return {
+    ...career,
+    stats,
+    currentTurnHistory,
+    elementaryEventState: { ...career.elementaryEventState, pendingEvent, pendingOutcome: null },
+  }
+}
+
+export function selectElementaryEventChoice(career, choiceId, rng = Math.random) {
+  const { pendingEvent, pendingOutcome } = career.elementaryEventState
+  if (!pendingEvent || pendingOutcome) return career
+  const choice = pendingEvent.choices.find(({ id }) => id === choiceId)
+  if (!choice) return career
+  const resolved = resolveEventChoice(pendingEvent, choiceId, rng)
+  return {
+    ...career,
+    elementaryEventState: {
+      ...career.elementaryEventState,
+      pendingOutcome: { choiceId, ...materializeOutcome(resolved, career.stats, rng) },
+    },
+  }
+}
+
+export function finishElementaryEvent(career, rng = Math.random) {
+  const { pendingEvent, pendingOutcome } = career.elementaryEventState
+  if (!pendingEvent || !pendingOutcome) return career
+  const choice = pendingEvent.choices.find(({ id }) => id === pendingOutcome.choiceId)
+  let next = applyEventOutcome(career, pendingEvent, pendingOutcome)
+  next.currentTurnHistory.conditionAfterEvent = next.condition
+  next.currentTurnHistory.eventConditionDelta = pendingOutcome.conditionDelta
+  next = completeTurn(next, next.currentTurnHistory.expectedGrowth, rng, { event: pendingEvent, choice, outcome: pendingOutcome })
+  return {
+    ...next,
+    elementaryEventState: { ...next.elementaryEventState, pendingEvent: null, pendingOutcome: null },
+  }
+}
+
+export function advanceCareer(career, rng = Math.random) {
+  if (!career.growthType) throw new Error('Growth type must be selected before advancing.')
+  if (career.complete) return career
+  if (TURNS[career.turnIndex].stage === '초등부') return startElementaryTurn(career, rng)
+
+  const turn = TURNS[career.turnIndex]
+  const currentTurnHistory = beginTurnHistory(career, turn)
+  const { stats, expectedGrowth } = applyBaseGrowth(career, rng)
+  currentTurnHistory.statsAfterBase = { ...stats }
+  return completeTurn({ ...career, stats, currentTurnHistory }, expectedGrowth, rng)
 }
 
 export function displayStat(value) {

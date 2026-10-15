@@ -5,7 +5,11 @@ import { MAX_STAT, STATS } from '../src/data/stats.js'
 import { TURNS } from '../src/data/turns.js'
 import { getNextCondition } from '../src/game/condition.js'
 import { chooseGrowthType, createCareer, createInitialStats, rerollCareer } from '../src/game/createCareer.js'
-import { advanceCareer } from '../src/game/growth.js'
+import { ELEMENTARY_COMMON_EVENTS } from '../src/data/elementaryEvents.js'
+import { ELEMENTARY_SCHOOL_EVENTS } from '../src/data/schoolEvents.js'
+import { applyEventOutcome, moveCondition, resolveEventChoice } from '../src/game/eventResolver.js'
+import { createElementaryEventState, getElementaryEvent } from '../src/game/eventScheduler.js'
+import { advanceCareer, finishElementaryEvent, selectElementaryEventChoice } from '../src/game/growth.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -21,7 +25,13 @@ function seededRandom(seed) {
 function finishCareer(typeId, seed = 1, overrides = {}) {
   const rng = seededRandom(seed)
   let career = chooseGrowthType({ ...createCareer(rng), ...overrides }, typeId)
-  for (let turn = 0; turn < 24; turn += 1) career = advanceCareer(career, rng)
+  while (!career.complete) {
+    career = advanceCareer(career, rng)
+    if (career.elementaryEventState.pendingEvent) {
+      career = selectElementaryEventChoice(career, career.elementaryEventState.pendingEvent.choices[0].id, rng)
+      career = finishElementaryEvent(career, rng)
+    }
+  }
   return career
 }
 
@@ -88,7 +98,7 @@ test('each growth type produces its intended tendency while every stat grows', (
   }
 
   assert.ok(results.sprinter.stats.power > results.sprinter.stats.speed)
-  assert.ok(results.sprinter.stats.speed > results.sprinter.stats.stamina)
+  assert.ok(results.sprinter.stats.speed > results.sprinter.stats.intelligence)
   assert.ok(results.miler.stats.speed > results.miler.stats.power)
   assert.ok(results.miler.stats.power > results.miler.stats.grit)
   assert.ok(results.router.stats.speed > results.router.stats.power)
@@ -136,4 +146,116 @@ test('career completes after turn 24 and stats never exceed 120', () => {
   assert.equal(career.turnIndex, 23)
   assert.equal(career.logs[0].turn, 24)
   for (const value of Object.values(career.stats)) assert.ok(value <= MAX_STAT)
+})
+
+test('all event choices have exactly three outcomes with total weight 100', () => {
+  for (const event of [...ELEMENTARY_COMMON_EVENTS, ...ELEMENTARY_SCHOOL_EVENTS]) {
+    assert.equal(event.choices.length, 3, event.id)
+    for (const choice of event.choices) {
+      assert.equal(choice.outcomes.length, 3, `${event.id}/${choice.id}`)
+      assert.equal(choice.outcomes.reduce((sum, outcome) => sum + outcome.weight, 0), 100, `${event.id}/${choice.id}`)
+    }
+  }
+})
+
+function eventCareer(school, stateOverrides = {}) {
+  const base = chooseGrowthType(createCareer({ lastName: '테스트', firstName: '선수' }, seededRandom(4)), 'router')
+  return {
+    ...base,
+    school,
+    elementaryEventState: {
+      ...createElementaryEventState(school.id, () => 0.99),
+      ...stateOverrides,
+    },
+  }
+}
+
+test('ordinary schools receive six unique common events in elementary school', () => {
+  let career = eventCareer({ id: 'fuchu_central', name: '후추 중앙 초등학교' })
+  const ids = []
+  const rng = seededRandom(91)
+  for (let grade = 1; grade <= 6; grade += 1) {
+    career = advanceCareer(career, rng)
+    ids.push(career.elementaryEventState.pendingEvent.id)
+    assert.equal(career.elementaryEventState.pendingEvent.type, 'COMMON')
+    career = selectElementaryEventChoice(career, 'a', rng)
+    career = finishElementaryEvent(career, rng)
+  }
+  assert.equal(ids.length, 6)
+  assert.equal(new Set(ids).size, 6)
+})
+
+test('a special school without signature gets one or two school events and never its signature', () => {
+  let career = eventCareer({ id: 'cap', name: '캡 초등학교' })
+  const rng = seededRandom(12)
+  for (let grade = 1; grade <= 6; grade += 1) {
+    career = advanceCareer(career, rng)
+    career = selectElementaryEventChoice(career, 'a', rng)
+    career = finishElementaryEvent(career, rng)
+  }
+  assert.ok(career.elementaryEventState.schoolEventCount >= 1)
+  assert.ok(career.elementaryEventState.schoolEventCount <= 2)
+  assert.ok(!career.elementaryEventState.completedEventIds.includes('cap_oguri_return'))
+})
+
+test('a future signature reserves the second school-event slot', () => {
+  const school = { id: 'cap', name: '캡 초등학교' }
+  const career = eventCareer(school, {
+    schoolEventCount: 1,
+    completedEventIds: ['cap_dirt_trial'],
+    signatureScheduled: true,
+    signatureEventId: 'cap_oguri_return',
+    signatureGrade: 5,
+    signatureTriggered: false,
+  })
+  assert.equal(getElementaryEvent(career, 3, () => 0).type, 'COMMON')
+  assert.equal(getElementaryEvent(career, 4, () => 0).type, 'COMMON')
+  assert.equal(getElementaryEvent(career, 5, () => 0).id, 'cap_oguri_return')
+})
+
+test('a grade-six signature has priority over the minimum school-event guarantee', () => {
+  const career = eventCareer({ id: 'symboli', name: '심볼리 초등학교' }, {
+    schoolEventCount: 0,
+    signatureScheduled: true,
+    signatureEventId: 'symboli_rudolf_visit',
+    signatureGrade: 6,
+    signatureTriggered: false,
+  })
+  assert.equal(getElementaryEvent(career, 6, () => 0.99).id, 'symboli_rudolf_visit')
+})
+
+test('rapid choice and continue actions resolve and apply an outcome only once', () => {
+  let career = eventCareer({ id: 'fuchu_central', name: '후추 중앙 초등학교' })
+  career = advanceCareer(career, () => 0)
+  const once = selectElementaryEventChoice(career, 'a', () => 0)
+  const twice = selectElementaryEventChoice(once, 'a', () => 0.99)
+  assert.strictEqual(twice, once)
+  const finished = finishElementaryEvent(twice, () => 0.5)
+  const repeated = finishElementaryEvent(finished, () => 0.5)
+  assert.strictEqual(repeated, finished)
+  assert.equal(finished.history.length, 1)
+  assert.equal(finished.elementaryEventState.completedEventIds.length, 1)
+})
+
+test('great success and failure are recorded in history with bounded values', () => {
+  let great = eventCareer({ id: 'fuchu_central', name: '후추 중앙 초등학교' })
+  great = advanceCareer(great, () => 0)
+  great = selectElementaryEventChoice(great, 'a', () => 0)
+  great = finishElementaryEvent(great, () => 0.5)
+  assert.equal(great.history[0].event.outcomeType, 'GREAT_SUCCESS')
+  assert.ok(great.history[0].event.statChanges.speed > 0)
+
+  const failure = resolveEventChoice(ELEMENTARY_SCHOOL_EVENTS.find(({ id }) => id === 'cap_oguri_return'), 'a', () => 0.999)
+  assert.equal(failure.type, 'FAILURE')
+  const zeroed = { ...eventCareer({ id: 'cap', name: '캡 초등학교' }), stats: Object.fromEntries(STATS.map(({ id }) => [id, 0])) }
+  const applied = applyEventOutcome(zeroed, ELEMENTARY_SCHOOL_EVENTS.find(({ id }) => id === 'cap_oguri_return'), failure)
+  assert.equal(applied.stats.stamina, 0)
+})
+
+test('condition and stats are clamped to their legal ranges', () => {
+  assert.equal(moveCondition('최악', -1), '최악')
+  const event = ELEMENTARY_SCHOOL_EVENTS.find(({ id }) => id === 'mejiro_matriarch')
+  const career = { ...eventCareer({ id: 'mejiro', name: '메지로 초등학교' }), stats: Object.fromEntries(STATS.map(({ id }) => [id, 119])) }
+  const applied = applyEventOutcome(career, event, { statChanges: { stamina: 7 }, conditionDelta: 0 })
+  assert.equal(applied.stats.stamina, 120)
 })

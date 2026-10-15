@@ -5,7 +5,7 @@ import { MAX_STAT, STATS } from './data/stats.js'
 import { TURNS } from './data/turns.js'
 import { createCareer, chooseGrowthType, rerollCareer } from './game/createCareer.js'
 import { getCareerEvaluation } from './game/evaluation.js'
-import { advanceCareer, displayStat } from './game/growth.js'
+import { advanceCareer, displayStat, finishElementaryEvent, selectElementaryEventChoice } from './game/growth.js'
 
 const SCREENS = {
   HOME: 'HOME',
@@ -34,7 +34,7 @@ function StatGrid({ stats, previousStats = null }) {
             <div className="stat-track" role="meter" aria-label={label} aria-valuemin="0" aria-valuemax={MAX_STAT} aria-valuenow={value}>
               <span style={{ width: `${(value / MAX_STAT) * 100}%` }} />
             </div>
-            {delta !== null && <span className="stat-delta">+{delta}</span>}
+            {delta !== null && <span className={`stat-delta ${delta < 0 ? 'negative' : ''}`}>{delta >= 0 ? '+' : ''}{delta}</span>}
           </div>
         )
       })}
@@ -138,25 +138,77 @@ function GrowthPlan({ career, selectedType, onSelect, onBegin, onBack }) {
   )
 }
 
+const OUTCOME_LABELS = { GREAT_SUCCESS: '대성공!', SUCCESS: '성공', FAILURE: '실패' }
+const RATING_LABELS = { LOWEST: '성장 미비', LOW: '조용한 성장', NORMAL: '꾸준한 성장', HIGH: '성공적인 성장', VERY_HIGH: '폭풍 성장!' }
+
 function GrowthLog({ log, isLatest }) {
   return (
-    <article className={`log-card ${isLatest ? 'latest' : ''}`}>
-      <header><span>TURN {String(log.turn).padStart(2, '0')}</span><strong>{log.label}</strong></header>
-      <div className="log-stats">
-        {STATS.map(({ id, label }) => {
-          const before = displayStat(log.before[id])
-          const after = displayStat(log.after[id])
-          return <p key={id}><span>{label}</span><span>{isLatest && <small>{before} → {after}</small>} <em>+{after - before}</em></span></p>
-        })}
+    <details className={`log-card ${isLatest ? 'latest' : ''}`} open={isLatest}>
+      <summary>
+        <span className="log-turn">TURN {String(log.turn).padStart(2, '0')}</span>
+        <span className="log-summary-main"><strong>{log.periodLabel}</strong><em>★ {RATING_LABELS[log.growthRating]}</em></span>
+        <span className="log-chevron" aria-hidden="true">⌄</span>
+      </summary>
+      <div className="log-detail">
+        <p className="rating-copy">{log.growthRatingText}</p>
+        <div className="history-stats">
+          {STATS.map(({ id, label }) => {
+            const before = displayStat(log.statsBefore[id])
+            const after = displayStat(log.statsAfter[id])
+            const delta = after - before
+            return <p key={id}><span>{label}</span><small>{before} → {after}</small><em className={delta < 0 ? 'negative' : ''}>{delta >= 0 ? '+' : ''}{delta}</em></p>
+          })}
+        </div>
+        {log.event && (
+          <section className={`history-event ${log.event.signatureEvent ? 'signature' : ''}`}>
+            <span>{log.event.signatureEvent ? '★ LEGEND EVENT' : log.event.schoolEvent ? 'SCHOOL EVENT' : 'EVENT'}</span>
+            <h3>{log.event.eventName} · {OUTCOME_LABELS[log.event.outcomeType]}</h3>
+            <p>{log.event.situation}</p>
+            <dl><div><dt>선택</dt><dd>「{log.event.selectedChoiceText}」</dd></div><div><dt>결과</dt><dd>{log.event.outcomeText}</dd></div></dl>
+          </section>
+        )}
+        <footer>컨디션 <span>{log.conditionBefore}</span><b>→</b><strong>{log.conditionAfter}</strong></footer>
       </div>
-      <footer>컨디션 <span>{log.conditionBefore}</span><b>→</b><strong>{log.conditionAfter}</strong></footer>
-    </article>
+    </details>
   )
 }
 
-function Playing({ career, onAdvance }) {
+function EventModal({ event, outcome, onSelect, onContinue }) {
+  const isSignature = event.type === 'SIGNATURE'
+  const typeLabel = isSignature ? '★ LEGEND EVENT' : event.type === 'SCHOOL' ? 'SCHOOL EVENT' : 'EVENT'
+  return (
+    <div className="event-backdrop" role="presentation">
+      <section className={`event-modal ${isSignature ? 'signature' : ''}`} role="dialog" aria-modal="true" aria-labelledby="event-title">
+        <p className="event-badge">{typeLabel}</p>
+        {!outcome ? (
+          <>
+            <h2 id="event-title">{event.name}</h2>
+            <p className="event-situation">{event.situation}</p>
+            <div className="event-choices">
+              {event.choices.map((choice) => <button type="button" key={choice.id} onClick={() => onSelect(choice.id)} disabled={Boolean(outcome)}>{choice.text}<span aria-hidden="true">→</span></button>)}
+            </div>
+          </>
+        ) : (
+          <div className="event-result">
+            <p className={`outcome outcome-${outcome.type}`}>{outcome.type === 'GREAT_SUCCESS' ? '★ ' : ''}{OUTCOME_LABELS[outcome.type]}</p>
+            <h2 id="event-title">{event.name}</h2>
+            <p className="outcome-text">{outcome.text}</p>
+            <div className="outcome-effects">
+              {Object.entries(outcome.statChanges).map(([id, amount]) => <span className={amount < 0 ? 'negative' : ''} key={id}>{STATS.find((stat) => stat.id === id)?.label} {amount >= 0 ? '+' : ''}{amount}</span>)}
+              {outcome.conditionDelta !== 0 && <span className={outcome.conditionDelta < 0 ? 'negative' : ''}>컨디션 {outcome.conditionDelta > 0 ? '+' : ''}{outcome.conditionDelta}</span>}
+              {Object.keys(outcome.statChanges).length === 0 && outcome.conditionDelta === 0 && <span>변화 없음</span>}
+            </div>
+            <button className="primary-button event-continue" type="button" onClick={onContinue}><span>계속</span><span aria-hidden="true">→</span></button>
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function Playing({ career, onAdvance, onEventChoice, onEventContinue }) {
   const currentTurn = TURNS[career.turnIndex]
-  const lastLog = career.logs[0]
+  const lastLog = career.history[0]
   const progress = ((career.turnIndex) / TURNS.length) * 100
 
   return (
@@ -176,17 +228,18 @@ function Playing({ career, onAdvance }) {
 
         <section className="panel ability-panel">
           <div className="section-heading"><div><p className="section-kicker">CURRENT ABILITY</p><h2>능력치</h2></div>{lastLog && <span className="growth-caption">직전 턴 성장량</span>}</div>
-          <StatGrid stats={career.stats} previousStats={lastLog?.before} />
+          <StatGrid stats={career.stats} previousStats={lastLog?.statsBefore} />
         </section>
 
         <aside className="log-panel">
           <div className="section-heading"><div><p className="section-kicker">HISTORY</p><h2>최근 성장</h2></div><span>최근 {Math.min(career.logs.length, 3)}개</span></div>
-          {career.logs.length > 0 ? career.logs.slice(0, 3).map((log, index) => <GrowthLog log={log} isLatest={index === 0} key={log.turn} />) : <div className="empty-log"><p>첫 성장 기록을 기다리고 있습니다.</p></div>}
+          {career.history.length > 0 ? career.history.slice(0, 3).map((log, index) => <GrowthLog log={log} isLatest={index === 0} key={log.turn} />) : <div className="empty-log"><p>첫 성장 기록을 기다리고 있습니다.</p></div>}
         </aside>
         <div className="turn-action">
           <button className="primary-button" type="button" onClick={onAdvance}><span>다음 턴</span><span aria-hidden="true">→</span></button>
         </div>
       </div>
+      {career.elementaryEventState.pendingEvent && <EventModal event={career.elementaryEventState.pendingEvent} outcome={career.elementaryEventState.pendingOutcome} onSelect={onEventChoice} onContinue={onEventContinue} />}
     </main>
   )
 }
@@ -268,11 +321,15 @@ function App() {
     if (next.complete) setScreen(SCREENS.RESULT)
   }
 
+  const handleEventChoice = (choiceId) => setCareer((current) => selectElementaryEventChoice(current, choiceId))
+
+  const handleEventContinue = () => setCareer((current) => finishElementaryEvent(current))
+
   if (screen === SCREENS.HOME) return <Intro onStart={startNewCareer} />
   if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
   if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
   if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
-  if (screen === SCREENS.CAREER) return <Playing career={career} onAdvance={handleAdvance} />
+  if (screen === SCREENS.CAREER) return <Playing career={career} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} />
   if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
   return <Intro onStart={startNewCareer} />
 }

@@ -3,6 +3,7 @@ import { REGIONS } from '../data/regions.js'
 import { ELEMENTARY_SCHOOLS } from '../data/schools.js'
 import { STATS } from '../data/stats.js'
 import { bellCurveScore, randomIndex, weightedPick } from './random.js'
+import { createElementaryEventState } from './eventScheduler.js'
 
 const INITIAL_STAT_WEIGHTS = { 8: 0.1, 9: 0.2, 10: 0.4, 11: 0.2, 12: 0.1 }
 
@@ -26,22 +27,28 @@ export function createCareer(names = {}, rng = Math.random) {
   const lastName = names.lastName?.trim().slice(0, 5) ?? ''
   const firstName = names.firstName?.trim().slice(0, 5) ?? ''
   const region = REGIONS[randomIndex(REGIONS.length, rng)]
+  const school = assignElementarySchool(region.id, rng)
   const initialStats = createInitialStats(rng)
+  const potential = bellCurveScore(rng)
+  const stability = bellCurveScore(rng)
 
   return {
     lastName,
     firstName,
     fullName: [lastName, firstName].filter(Boolean).join(' '),
     region,
-    school: assignElementarySchool(region.id, rng),
+    school,
     stats: { ...initialStats },
     initialStats,
-    potential: bellCurveScore(rng),
-    stability: bellCurveScore(rng),
+    potential,
+    stability,
     growthType: null,
     condition: '보통',
     turnIndex: 0,
     logs: [],
+    history: [],
+    currentTurnHistory: null,
+    elementaryEventState: createElementaryEventState(school.id, rng),
     notice: '',
     complete: false,
   }

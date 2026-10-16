@@ -615,6 +615,9 @@ test('elementary graduation assigns exactly one of five middle Tracen schools an
   assert.ok(MIDDLE_SCHOOLS.some(({ id }) => id === career.middleState.schoolId))
   assert.ok(career.middleState.admissionScore >= 0 && career.middleState.admissionScore <= 100)
   assert.ok(career.middleState.schoolName.includes('트레센 학원 중등부'))
+  const central = MIDDLE_SCHOOLS.find(({ id }) => id === 'central_tracen_middle')
+  assert.equal(central.location, '일본 도쿄도 후추시')
+  assert.equal(central.summaryName, '중앙 트레센 학원')
 })
 
 test('all 32 middle events have three choices and valid one-roll outcome tables', () => {

@@ -9,6 +9,7 @@ import { acknowledgeMiddleAdmission, advanceCareer, displayStat, finishElementar
 import { finishMiddleEvent, finishMiddleLegend, selectMiddleEventChoice, selectMiddleLegend } from './game/middleEvents.js'
 import { generateRandomUmaName } from './game/nameGenerator.js'
 import { getElementarySchoolById } from './data/schools.js'
+import { getMiddleSchoolById } from './data/middleSchools.js'
 import TurnProgress from './components/TurnProgress.jsx'
 import { createTurnProgressPlan } from './game/turnProgress.js'
 
@@ -319,6 +320,9 @@ function LegendEventModal({ event, outcome, onSelect, onContinue }) {
 
 function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, onProgressEventTrigger, onProgressLegendTrigger, onProgressComplete, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue }) {
   const currentTurn = TURNS[career.turnIndex]
+  const middleSchool = currentTurn.stage === '중등부' ? getMiddleSchoolById(career.middleState.schoolId) : null
+  const summaryLocation = middleSchool?.location ?? career.region.name
+  const summarySchoolName = middleSchool?.summaryName ?? career.middleState?.schoolName
   const lastLog = career.logs[0]
   const progress = ((career.turnIndex) / TURNS.length) * 100
   const elementaryEventOpen = Boolean(turnProgress?.eventTriggered && !turnProgress.eventResolved && career.elementaryEventState.pendingEvent)
@@ -336,7 +340,7 @@ function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, o
           <div className="chapter-line"><p className="section-kicker">CURRENT CHAPTER</p><span>{currentTurn.number} / {TURNS.length}</span></div>
           <p className="character-name">{career.fullName}</p>
           <h1>{currentTurn.label}</h1>
-          <p className="summary-line">{career.region.name} · {currentTurn.stage === '초등부' ? career.school.name : currentTurn.stage === '중등부' ? career.middleState.schoolName : `${currentTurn.stage} 과정`}</p>
+          <p className="summary-line">{summaryLocation} · {currentTurn.stage === '초등부' ? career.school.name : currentTurn.stage === '중등부' ? summarySchoolName : `${currentTurn.stage} 과정`}</p>
           <p className="summary-line">{career.growthType.name} · 컨디션 <strong className={`condition condition-${career.condition}`}>{career.condition}</strong></p>
           {career.notice && <div className="milestone"><span>◆</span><p>{career.notice}</p></div>}
         </section>

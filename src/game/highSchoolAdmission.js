@@ -6,15 +6,29 @@ const HIGH = ADMISSION_BALANCE.HIGH_SCHOOL_ADMISSION
 
 export function calculateHighSchoolSpecialtyStat(career) {
   const { speed, stamina, power, grit } = career.stats
-  const weights = career.growthType.weights
-  return speed * (weights.speed ?? 0) + stamina * (weights.stamina ?? 0) + power * (weights.power ?? 0) + grit * (weights.grit ?? 0)
+  switch (career.growthType.id) {
+    case 'sprinter':
+    case 'miler':
+      return (speed + power) / 2
+    case 'router':
+      return (speed + power + grit) / 3
+    case 'stayer':
+      return (stamina + grit + speed) / 3
+    default:
+      return 0
+  }
+}
+
+export function calculateHighSchoolSpecialtyScore(career) {
+  const normalization = HIGH.specialtyNormalization[career.growthType.id.toUpperCase()]
+  const coreStatAverage = calculateHighSchoolSpecialtyStat(career)
+  return clamp((coreStatAverage - normalization.min) / (normalization.max - normalization.min), 0, 1) * HIGH.specialtyMaximum
 }
 
 export function calculateHighSchoolAdmissionScore(career) {
   const totalStats = Object.values(career.stats).reduce((sum, value) => sum + value, 0)
   const overallScore = clamp((totalStats - HIGH.overall.minimumTotal) / HIGH.overall.range, 0, 1) * HIGH.overall.maximum
-  const specialtyStat = calculateHighSchoolSpecialtyStat(career)
-  const specialtyScore = clamp((specialtyStat - HIGH.specialty.minimum) / HIGH.specialty.range, 0, 1) * HIGH.specialty.maximum
+  const specialtyScore = calculateHighSchoolSpecialtyScore(career)
   const schoolBonus = career.middleState?.schoolId === 'central_tracen_middle' ? HIGH.centralMiddleBonus : 0
   return clamp(overallScore + specialtyScore + schoolBonus, 0, 100)
 }

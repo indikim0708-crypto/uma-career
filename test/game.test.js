@@ -25,7 +25,7 @@ import { resolveMiddleDistanceChange } from '../src/game/middleDistanceChange.js
 import { ELEMENTARY_PROGRESS_MESSAGES, HIGH_PROGRESS_MESSAGES, MIDDLE_PROGRESS_MESSAGES, PROGRESS_MESSAGES } from '../src/data/progressMessages.js'
 import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDurationMs, selectTurnProgressMessages, TURN_PROGRESS_DURATION_MS } from '../src/game/turnProgress.js'
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
-import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
+import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, calculateHighSchoolSpecialtyScore, calculateHighSchoolSpecialtyStat, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
 import { finishHighSchoolEvent, finishHighSchoolRace, resolveHighSchoolRace, selectHighSchoolEventChoice } from '../src/game/highSchoolYear1.js'
 
@@ -674,8 +674,8 @@ function endingCareer(stats, growthTypeId = 'router', history = [], schoolId = '
 test('high school admission uses final stats, final growth type, central bonus, and exactly one acceptance roll', () => {
   const career = endingCareer({ speed: 60, stamina: 40, power: 60, grit: 40, intelligence: 40 }, 'sprinter')
   const central = { ...career, middleState: { schoolId: 'central_tracen_middle' } }
-  assert.ok(Math.abs(calculateHighSchoolAdmissionScore(career) - 56.6666666667) < 0.0001)
-  assert.ok(Math.abs(calculateHighSchoolAdmissionScore(central) - 66.6666666667) < 0.0001)
+  assert.ok(Math.abs(calculateHighSchoolAdmissionScore(career) - 55.5) < 0.0001)
+  assert.ok(Math.abs(calculateHighSchoolAdmissionScore(central) - 65.5) < 0.0001)
   assert.equal(calculateHighSchoolAdmissionScore({ ...career, potential: 0 }), calculateHighSchoolAdmissionScore({ ...career, potential: 100 }))
   assert.equal(getHighSchoolAdmissionChance(39.99), 0.05)
   assert.equal(getHighSchoolAdmissionChance(40), 0.20)
@@ -696,6 +696,24 @@ test('high school admission uses final stats, final growth type, central bonus, 
   const entered = enterHighSchool(completeHighSchoolAdmissionSequence(accepted))
   assert.equal(entered.turnIndex, 12)
   assert.equal(entered.nonRacerEnding, null)
+})
+
+test('high school specialty score uses core-stat averages and type-specific normalization', () => {
+  const stats = { speed: 55, stamina: 40, power: 55, grit: 40, intelligence: 40 }
+  const sprinter = endingCareer(stats, 'sprinter')
+  const miler = endingCareer(stats, 'miler')
+  const router = endingCareer({ ...stats, speed: 49.2, power: 49.2, grit: 49.2 }, 'router')
+  const stayer = endingCareer({ ...stats, speed: 49.2, stamina: 49.2, grit: 49.2 }, 'stayer')
+
+  assert.equal(calculateHighSchoolSpecialtyStat(sprinter), 55)
+  assert.equal(calculateHighSchoolSpecialtyStat(miler), 55)
+  assert.ok(Math.abs(calculateHighSchoolSpecialtyStat(router) - 49.2) < 0.0001)
+  assert.ok(Math.abs(calculateHighSchoolSpecialtyStat(stayer) - 49.2) < 0.0001)
+  for (const career of [sprinter, miler, router, stayer]) {
+    assert.ok(Math.abs(calculateHighSchoolSpecialtyScore(career) - 21) < 0.0001)
+  }
+  assert.equal(calculateHighSchoolSpecialtyScore(endingCareer({ speed: 0, stamina: 0, power: 0, grit: 0, intelligence: 0 }, 'router')), 0)
+  assert.equal(calculateHighSchoolSpecialtyScore(endingCareer({ speed: 120, stamina: 120, power: 120, grit: 120, intelligence: 120 }, 'stayer')), 35)
 })
 
 test('non-racer ending resolver is deterministic, history-aware, and covers specialist and fallback paths', () => {

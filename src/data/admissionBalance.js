@@ -29,7 +29,13 @@ export const ADMISSION_BALANCE = {
   centralElementaryMinimumChance: 0.90,
   HIGH_SCHOOL_ADMISSION: {
     overall: { minimumTotal: 200, range: 80, maximum: 55 },
-    specialty: { minimum: 35, range: 30, maximum: 35 },
+    specialtyNormalization: {
+      SPRINTER: { min: 40, max: 65 },
+      MILER: { min: 40, max: 65 },
+      ROUTER: { min: 36, max: 58 },
+      STAYER: { min: 36, max: 58 },
+    },
+    specialtyMaximum: 35,
     centralMiddleBonus: 10,
     chanceBands: [
       { below: 40, chance: 0.05 },

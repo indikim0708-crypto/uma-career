@@ -11,6 +11,7 @@ import { scheduleMiddleLegends } from './middleLegend.js'
 import { applyMiddleNaturalCondition, chooseMiddleEvent } from './middleEvents.js'
 import { beginMiddleDistanceChange, isMiddleDistanceChangeDue } from './middleDistanceChange.js'
 import { createAdmissionPlan } from './admissionSequence.js'
+import { startHighSchoolTurn } from './highSchoolYear1.js'
 
 export function getPotentialMultiplier(potential) {
   if (potential < 20) return 0.9
@@ -157,6 +158,8 @@ export function advanceCareer(career, rng = Math.random) {
       },
     }
   }
+
+  if (TURNS[career.turnIndex].stage === '고등부' && career.turnIndex <= 15) return startHighSchoolTurn(career, rng)
 
   const turn = TURNS[career.turnIndex]
   const currentTurnHistory = beginTurnHistory(career, turn)

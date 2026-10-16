@@ -79,8 +79,8 @@ function hasLegendThisTurn(career, turnNumber) {
 
 export function createTurnProgressPlan(career, rng = Math.random) {
   const turn = TURNS[career.turnIndex]
-  if (!turn || !['초등부', '중등부'].includes(turn.stage)) return null
-  const stage = turn.stage === '초등부' ? 'ELEMENTARY' : 'MIDDLE'
+  if (!turn || !['초등부', '중등부', '고등부'].includes(turn.stage)) return null
+  const stage = turn.stage === '초등부' ? 'ELEMENTARY' : turn.stage === '중등부' ? 'MIDDLE' : 'HIGH'
   const conditionDelta = career.currentTurnHistory?.naturalConditionDelta ?? 0
   const context = {
     stage,
@@ -90,7 +90,7 @@ export function createTurnProgressPlan(career, rng = Math.random) {
   }
   const messages = selectTurnProgressMessages(context, career.recentProgressMessageIds ?? [], rng)
   const eventProgressPoint = 0.35 + rng() * 0.35
-  const legendRequired = stage === 'MIDDLE' && hasLegendThisTurn(career, turn.number)
+  const legendRequired = stage === 'MIDDLE' ? hasLegendThisTurn(career, turn.number) : stage === 'HIGH' && (turn.number === 14 || (turn.number === 15 && career.highSchoolState?.debutStatus === 'FAILED_ONCE') || (turn.number === 16 && career.highSchoolState?.debutStatus === 'SUCCESS' && career.growthType.id !== 'sprinter'))
   const legendProgressPoint = legendRequired
     ? Math.max(0.70 + rng() * 0.15, Math.min(0.85, eventProgressPoint + 0.12))
     : null

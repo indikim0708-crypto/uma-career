@@ -3,7 +3,7 @@ function messages(stage, prefix, start, category, texts, options = {}) {
     const number = start + index
     const key = `${prefix}${String(number).padStart(3, '0')}`
     return {
-      id: `${stage === 'ELEMENTARY' ? 'elem' : 'middle'}_${String(number).padStart(3, '0')}`,
+      id: `${stage === 'ELEMENTARY' ? 'elem' : stage === 'MIDDLE' ? 'middle' : 'high'}_${String(number).padStart(3, '0')}`,
       stage,
       category,
       text,
@@ -276,4 +276,19 @@ export const MIDDLE_PROGRESS_MESSAGES = [
   ]),
 ]
 
-export const PROGRESS_MESSAGES = [...ELEMENTARY_PROGRESS_MESSAGES, ...MIDDLE_PROGRESS_MESSAGES]
+export const HIGH_PROGRESS_MESSAGES = [
+  ...messages('HIGH', 'H', 1, 'RACE_LIFE', [
+    '공식 레이스를 앞두고 스타트 게이트 훈련을 반복했습니다.',
+    '레이스 영상으로 상대의 주행을 분석하고 있습니다.',
+    '코치와 다음 레이스의 작전을 세웠습니다.',
+    '패독에서 몸 상태와 장비를 꼼꼼히 점검했습니다.',
+    '병주 훈련에서 페이스 조절을 시험했습니다.',
+    '코너 진입과 포지셔닝을 집중적으로 연습했습니다.',
+    '추월 타이밍을 찾기 위해 여러 전개를 복기했습니다.',
+    '관중과의 첫 인터뷰를 준비하며 마음을 다잡았습니다.',
+    '실제 선수 생활의 리듬에 조금씩 적응하고 있습니다.',
+    '컨디션 관리와 회복 훈련에도 집중했습니다.',
+  ]),
+]
+
+export const PROGRESS_MESSAGES = [...ELEMENTARY_PROGRESS_MESSAGES, ...MIDDLE_PROGRESS_MESSAGES, ...HIGH_PROGRESS_MESSAGES]

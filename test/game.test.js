@@ -22,11 +22,12 @@ import { calculateAbilityScore, calculateMiddleAdmissionScore, calculateSchoolHi
 import { finishMiddleEvent, finishMiddleLegend, selectMiddleEventChoice, selectMiddleLegend } from '../src/game/middleEvents.js'
 import { getEligibleLegendEvents, rollLegendTargetCount, scheduleMiddleLegends } from '../src/game/middleLegend.js'
 import { resolveMiddleDistanceChange } from '../src/game/middleDistanceChange.js'
-import { ELEMENTARY_PROGRESS_MESSAGES, MIDDLE_PROGRESS_MESSAGES, PROGRESS_MESSAGES } from '../src/data/progressMessages.js'
+import { ELEMENTARY_PROGRESS_MESSAGES, HIGH_PROGRESS_MESSAGES, MIDDLE_PROGRESS_MESSAGES, PROGRESS_MESSAGES } from '../src/data/progressMessages.js'
 import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDurationMs, selectTurnProgressMessages, TURN_PROGRESS_DURATION_MS } from '../src/game/turnProgress.js'
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
 import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
+import { finishHighSchoolEvent, finishHighSchoolRace, resolveHighSchoolRace, selectHighSchoolEventChoice } from '../src/game/highSchoolYear1.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -64,6 +65,14 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
     if (career.highSchoolAdmission?.resolved && career.turnIndex === 11) {
       career = completeHighSchoolAdmissionSequence(career)
       career = enterHighSchool({ ...career, highSchoolAdmission: { ...career.highSchoolAdmission, accepted: true } })
+    }
+    if (career.highSchoolState?.pendingEvent) {
+      career = selectHighSchoolEventChoice(career, career.highSchoolState.pendingEvent.choices[0].id, rng)
+      career = finishHighSchoolEvent(career, rng)
+    }
+    if (career.highSchoolState?.pendingRace) {
+      career = resolveHighSchoolRace(career, career.highSchoolState.pendingRace.choices[0].id, rng)
+      career = finishHighSchoolRace(career, rng)
     }
   }
   return career
@@ -885,14 +894,15 @@ test('keeping the current type and local Tracen legends leaves the schedule unto
   assert.deepEqual(resolved.middleState.legendSchedule, career.middleState.legendSchedule)
 })
 
-test('progress message data contains 100 effect-free entries for each supported stage', () => {
+test('progress message data contains effect-free entries for each supported stage', () => {
   assert.equal(ELEMENTARY_PROGRESS_MESSAGES.length, 100)
   assert.equal(MIDDLE_PROGRESS_MESSAGES.length, 100)
-  assert.equal(PROGRESS_MESSAGES.length, 200)
-  assert.equal(new Set(PROGRESS_MESSAGES.map(({ id }) => id)).size, 200)
+  assert.equal(HIGH_PROGRESS_MESSAGES.length, 10)
+  assert.equal(PROGRESS_MESSAGES.length, 210)
+  assert.equal(new Set(PROGRESS_MESSAGES.map(({ id }) => id)).size, 210)
   for (const message of PROGRESS_MESSAGES) {
     assert.equal('effect' in message, false, message.id)
-    assert.ok(['ELEMENTARY', 'MIDDLE'].includes(message.stage))
+    assert.ok(['ELEMENTARY', 'MIDDLE', 'HIGH'].includes(message.stage))
     assert.ok(message.text.length > 0)
   }
 })

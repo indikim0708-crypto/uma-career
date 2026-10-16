@@ -271,7 +271,7 @@ function AdmissionModal({ career, onContinue }) {
     <div className="event-backdrop" role="presentation">
       <section className="event-modal admission-modal" role="dialog" aria-modal="true" aria-labelledby="admission-title">
         <p className="event-badge">MIDDLE SCHOOL ADMISSION</p>
-        <div className="admission-emblem" aria-hidden="true">◆</div>
+        <img className="admission-emblem" src="/assets/trecen.png" alt="중앙 트레센 학원 로고" />
         <h2 id="admission-title">중앙 트레센 학원</h2>
         <p className={`admission-result ${passed ? 'passed' : 'failed'}`}>{passed ? '합격' : '불합격'}</p>
         {!passed && <p className="admission-destination"><span>최종 진학</span><strong>{career.middleState.schoolName}</strong></p>}

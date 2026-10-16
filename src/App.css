@@ -259,7 +259,7 @@ button { border: 0; }
 @keyframes progress-message-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 
 .admission-modal { border-color: var(--gold); text-align: center; }
-.admission-emblem { color: var(--gold); font-size: 28px; margin: 6px 0 12px; text-shadow: 0 0 20px rgba(232, 202, 105, 0.55); }
+.admission-emblem { display: block; height: 56px; margin: 6px auto 12px; object-fit: contain; width: 56px; }
 .admission-result { font: 700 25px Georgia, serif; margin: 10px 0 16px; }
 .admission-result.passed { color: var(--gold); }
 .admission-result.failed { color: #a9a0ae; }
@@ -305,6 +305,8 @@ button { border: 0; }
   .topbar { padding-inline: 16px; }
   .setup-layout, .dashboard-layout, .result-layout { padding-inline: 16px; }
   .type-card { grid-template-columns: 1fr 1fr; }
+  .event-choices { gap: 10px; }
+  .event-choices button { font-size: 14px; min-height: 56px; padding: 12px 14px; }
 }
 
 @media (hover: hover) and (pointer: fine) {

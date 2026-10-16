@@ -300,6 +300,11 @@ button { border: 0; }
 .reveal-values strong { color: var(--gold); font: 400 28px Georgia, serif; }
 .reveal-values small { color: #736c78; font-size: 10px; }
 .restart-button { margin: 12px 14px 0; width: calc(100% - 28px); }
+.ending-panel h2 { font: 400 24px Georgia, serif; margin: 4px 0 12px; }
+.ending-panel > p:last-child { color: #d5ceda; font-size: 13px; line-height: 1.7; margin: 0; white-space: pre-line; }
+.another-path { align-items: center; display: flex; flex-direction: column; justify-content: center; min-height: 100svh; padding: 28px; text-align: center; }
+.another-path h1 { font: 400 clamp(30px, 9vw, 44px)/1.1 Georgia, serif; margin: 0; }
+.another-path > p:last-child { color: var(--muted); font-size: 13px; margin: 16px 0 0; }
 
 @media (min-width: 560px) {
   .page-shell { border-left: 1px solid rgba(255, 255, 255, 0.05); border-right: 1px solid rgba(255, 255, 255, 0.05); max-width: 560px; }

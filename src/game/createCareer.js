@@ -52,6 +52,8 @@ export function createCareer(names = {}, rng = Math.random) {
     currentTurnHistory: null,
     elementaryEventState: createElementaryEventState(school.id, rng),
     middleState: null,
+    highSchoolAdmission: null,
+    nonRacerEnding: null,
     notice: '',
     complete: false,
   }

@@ -14,6 +14,7 @@ import { getMiddleSchoolById } from './data/middleSchools.js'
 import TurnProgress from './components/TurnProgress.jsx'
 import AdmissionProgress from './components/AdmissionProgress.jsx'
 import { createTurnProgressPlan } from './game/turnProgress.js'
+import { completeHighSchoolAdmissionSequence, completeNonRacerCareer, enterHighSchool } from './game/highSchoolAdmission.js'
 
 const SCREENS = {
   HOME: 'HOME',
@@ -307,6 +308,22 @@ function AdmissionModal({ career, onContinue }) {
   )
 }
 
+function HighSchoolAdmissionModal({ career, onContinue }) {
+  const accepted = career.highSchoolAdmission.accepted
+  return (
+    <div className="event-backdrop" role="presentation">
+      <section className="event-modal admission-modal" role="dialog" aria-modal="true" aria-labelledby="high-admission-title">
+        <p className="event-badge">HIGH SCHOOL ADMISSION</p>
+        <img className="admission-emblem" src="/assets/trecen.png" alt="중앙 트레센 학원 로고" />
+        <h2 id="high-admission-title">중앙 트레센 학원 고등부</h2>
+        <p className={`admission-result ${accepted ? 'passed' : 'failed'}`}>{accepted ? '합격' : '불합격'}</p>
+        <p className="event-situation">{accepted ? '중앙 트레센 학원 고등부\n진학이 결정되었습니다.' : '아쉽게도 중앙 트레센 학원 고등부\n최종 선발 명단에 들지 못했습니다.'}</p>
+        <button className="primary-button event-continue" type="button" onClick={onContinue}><span>{accepted ? '고등부로 진학' : '다른 길을 찾아본다'}</span><span aria-hidden="true">→</span></button>
+      </section>
+    </div>
+  )
+}
+
 function DistanceChangeModal({ career, onSelect }) {
   const currentType = career.growthType
   const choices = [currentType, ...GROWTH_TYPES.filter(({ id }) => id !== currentType.id)]
@@ -364,7 +381,7 @@ function LegendEventModal({ event, outcome, onSelect, onContinue }) {
   )
 }
 
-function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, onProgressEventTrigger, onProgressLegendTrigger, onProgressComplete, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onAdmissionSequenceComplete, onDistanceChange, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue }) {
+function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, onProgressEventTrigger, onProgressLegendTrigger, onProgressComplete, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onAdmissionSequenceComplete, onHighAdmissionSequenceComplete, onHighAdmissionContinue, onDistanceChange, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue }) {
   const currentTurn = TURNS[career.turnIndex]
   const middleSchool = currentTurn.stage === '중등부' ? getMiddleSchoolById(career.middleState.schoolId) : null
   const summaryLocation = middleSchool?.location ?? career.region.name
@@ -409,6 +426,8 @@ function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, o
       {elementaryEventOpen && <EventModal event={career.elementaryEventState.pendingEvent} outcome={career.elementaryEventState.pendingOutcome} onSelect={onEventChoice} onContinue={onEventContinue} />}
       {!turnProgress && career.middleState?.admissionPending && !career.middleState.admissionPlan?.sequenceCompleted && <AdmissionProgress plan={career.middleState.admissionPlan} speed={progressSpeed} onSpeedChange={onProgressSpeedChange} onComplete={onAdmissionSequenceComplete} />}
       {!turnProgress && career.middleState?.admissionPending && career.middleState.admissionPlan?.sequenceCompleted && <AdmissionModal career={career} onContinue={onAdmissionContinue} />}
+      {!turnProgress && career.highSchoolAdmission?.resolved && !career.highSchoolAdmission.sequenceCompleted && <AdmissionProgress plan={career.highSchoolAdmission} speed={progressSpeed} onSpeedChange={onProgressSpeedChange} onComplete={onHighAdmissionSequenceComplete} eyebrow="HIGH SCHOOL ADMISSION" title={<>중앙 트레센 학원 고등부<br />진학 선발 전형</>} />}
+      {!turnProgress && career.highSchoolAdmission?.resolved && career.highSchoolAdmission.sequenceCompleted && career.turnIndex === 11 && <HighSchoolAdmissionModal career={career} onContinue={onHighAdmissionContinue} />}
       {!turnProgress && career.middleState?.distanceChangePending && <DistanceChangeModal career={career} onSelect={onDistanceChange} />}
       {middleEventOpen && <EventModal event={career.middleState.pendingEvent} outcome={career.middleState.pendingOutcome} onSelect={onMiddleEventChoice} onContinue={onMiddleEventContinue} />}
       {legendOpen && <LegendEventModal event={career.middleState.pendingLegend} outcome={career.middleState.pendingLegendOutcome} onSelect={onLegendSelect} onContinue={onLegendContinue} />}
@@ -417,6 +436,22 @@ function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, o
 }
 
 function Complete({ career, onRestart }) {
+  if (career.nonRacerEnding) {
+    const ending = career.nonRacerEnding
+    const middleSchool = getMiddleSchoolById(career.middleState?.schoolId)
+    return (
+      <main className="result-page page-shell">
+        <header className="topbar"><Brand /><span className="phase-label">ANOTHER PATH</span></header>
+        <div className="result-hero non-racer-hero"><p className="eyebrow">A DIFFERENT FINISH LINE</p><h1>{ending.title}</h1><strong className="result-name">{career.fullName}의 새로운 길</strong></div>
+        <div className="result-layout">
+          <section className="panel result-profile"><p className="section-kicker">CAREER PROFILE</p><dl className="profile-list"><div><dt>출신</dt><dd>{career.region.name}</dd></div><div><dt>초등학교</dt><dd>{career.school.name}</dd></div><div><dt>중등학교</dt><dd>{middleSchool?.displayName ?? career.middleState?.schoolName}</dd></div><div><dt>성장 타입</dt><dd>{career.growthType.name}</dd></div><div><dt>중앙 트레센 고등부</dt><dd>불합격</dd></div><div><dt>최종 진로</dt><dd>{ending.career}</dd></div></dl></section>
+          <section className="panel result-stats"><p className="section-kicker">FINAL ABILITY</p><h2>최종 능력치</h2><StatGrid stats={career.stats} /></section>
+          <section className="panel ending-panel"><p className="section-kicker">ANOTHER PATH</p><h2>「{ending.title}」</h2><p>{ending.body}</p></section>
+        </div>
+        <button className="primary-button restart-button" type="button" onClick={onRestart}><span>새 커리어 시작</span><span aria-hidden="true">↻</span></button>
+      </main>
+    )
+  }
   return (
     <main className="result-page page-shell">
       <header className="topbar"><Brand /><span className="phase-label">FINAL REPORT</span></header>
@@ -453,6 +488,14 @@ function Complete({ career, onRestart }) {
       <button className="primary-button restart-button" type="button" onClick={onRestart}><span>다시 시작하기</span><span aria-hidden="true">↻</span></button>
     </main>
   )
+}
+
+function AnotherPath({ onComplete }) {
+  useEffect(() => {
+    const timer = window.setTimeout(onComplete, 1400)
+    return () => window.clearTimeout(timer)
+  }, [onComplete])
+  return <main className="another-path page-shell"><p className="eyebrow">ANOTHER PATH</p><h1>레이스와는 다른 길</h1><p>새로운 가능성을 향해 나아갑니다.</p></main>
 }
 
 function App() {
@@ -523,6 +566,15 @@ function App() {
 
   const handleAdmissionSequenceComplete = () => setCareer((current) => completeMiddleAdmissionSequence(current))
   const handleAdmissionContinue = () => setCareer((current) => acknowledgeMiddleAdmission(current))
+  const handleHighAdmissionSequenceComplete = () => setCareer((current) => completeHighSchoolAdmissionSequence(current))
+  const handleHighAdmissionContinue = () => {
+    if (career.highSchoolAdmission?.accepted) {
+      setCareer((current) => enterHighSchool(current))
+      return
+    }
+    setCareer((current) => completeNonRacerCareer(current))
+    setScreen('ANOTHER_PATH')
+  }
   const handleDistanceChange = (growthTypeId) => {
     const resolved = resolveMiddleDistanceChange(career, growthTypeId)
     const next = advanceCareer(resolved)
@@ -549,7 +601,8 @@ function App() {
   if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onRandomName={randomizeName} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
   if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
   if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
-  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onAdmissionSequenceComplete={handleAdmissionSequenceComplete} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} />
+  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onAdmissionSequenceComplete={handleAdmissionSequenceComplete} onHighAdmissionSequenceComplete={handleHighAdmissionSequenceComplete} onHighAdmissionContinue={handleHighAdmissionContinue} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} />
+  if (screen === 'ANOTHER_PATH') return <AnotherPath onComplete={() => setScreen(SCREENS.RESULT)} />
   if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
   return <Intro onStart={startNewCareer} />
 }

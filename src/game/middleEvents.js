@@ -6,6 +6,7 @@ import { materializeOutcome, moveCondition, resolveEventChoice } from './eventRe
 import { randomChoice } from './eventScheduler.js'
 import { finalizeTurnHistory } from './history.js'
 import { getLegendDue } from './middleLegend.js'
+import { beginHighSchoolAdmission } from './highSchoolAdmission.js'
 
 export function getEligibleMiddleEvents(career) {
   const completed = career.middleState?.completedEventIds ?? []
@@ -66,9 +67,9 @@ function writeCommonEventHistory(history, event, choice, outcome) {
 function finalizeMiddleTurn(career, rng) {
   const expectedGrowth = career.currentTurnHistory.expectedGrowth
   const next = finalizeTurnHistory(career, { expectedGrowth, rng, preserveNaturalCondition: true })
-  return {
+  const finalized = {
     ...next,
-    turnIndex: career.turnIndex + 1,
+    turnIndex: career.turnIndex === 11 ? career.turnIndex : career.turnIndex + 1,
     notice: career.turnIndex === 11 ? '중등부를 졸업했습니다. 고등부 진학 준비가 시작됩니다.' : '',
     middleState: {
       ...next.middleState,
@@ -78,6 +79,7 @@ function finalizeMiddleTurn(career, rng) {
       pendingLegendOutcome: null,
     },
   }
+  return career.turnIndex === 11 ? beginHighSchoolAdmission(finalized, rng) : finalized
 }
 
 export function finishMiddleEvent(career, rng = Math.random) {

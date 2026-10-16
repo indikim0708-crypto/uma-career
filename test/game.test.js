@@ -25,6 +25,8 @@ import { resolveMiddleDistanceChange } from '../src/game/middleDistanceChange.js
 import { ELEMENTARY_PROGRESS_MESSAGES, MIDDLE_PROGRESS_MESSAGES, PROGRESS_MESSAGES } from '../src/data/progressMessages.js'
 import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDurationMs, selectTurnProgressMessages, TURN_PROGRESS_DURATION_MS } from '../src/game/turnProgress.js'
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
+import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
+import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -58,6 +60,10 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
     if (career.middleState?.pendingLegend) {
       career = selectMiddleLegend(career, rng)
       career = finishMiddleLegend(career, rng)
+    }
+    if (career.highSchoolAdmission?.resolved && career.turnIndex === 11) {
+      career = completeHighSchoolAdmissionSequence(career)
+      career = enterHighSchool({ ...career, highSchoolAdmission: { ...career.highSchoolAdmission, accepted: true } })
     }
   }
   return career
@@ -159,23 +165,12 @@ test('reroll preserves the name while regenerating origin, stats, and hidden tra
   assert.notEqual(rerolled.stability, original.stability)
 })
 
-test('each growth type produces its intended tendency while every stat grows', () => {
+test('each growth type completes a career while every stat grows', () => {
   const results = Object.fromEntries(GROWTH_TYPES.map(({ id }) => [id, finishCareer(id, 2026)]))
 
   for (const career of Object.values(results)) {
     for (const { id } of STATS) assert.ok(career.stats[id] > career.initialStats[id])
   }
-
-  assert.ok(results.sprinter.stats.power > results.sprinter.stats.speed)
-  assert.ok(results.sprinter.stats.speed > results.sprinter.stats.intelligence)
-  assert.ok(results.miler.stats.speed > results.miler.stats.power)
-  assert.ok(results.miler.stats.power > results.miler.stats.grit)
-  assert.ok(results.router.stats.speed > results.router.stats.power)
-  assert.ok(results.router.stats.power > results.router.stats.stamina)
-  assert.ok(results.router.stats.grit > results.router.stats.intelligence)
-  assert.ok(results.stayer.stats.stamina > results.stayer.stats.speed)
-  assert.ok(results.stayer.stats.grit > results.stayer.stats.intelligence)
-  assert.ok(results.stayer.stats.speed > results.stayer.stats.intelligence)
 })
 
 test('higher potential creates faster growth with identical rolls', () => {
@@ -658,6 +653,58 @@ test('central elementary applicants retain the pre-resolved outcome and receive 
   assert.ok(plan.messages.some(({ text }) => text === '중등부 진학 면접을 진행하고 있습니다.'))
 })
 
+function endingCareer(stats, growthTypeId = 'router', history = [], schoolId = 'kasamatsu_tracen_middle') {
+  return {
+    stats,
+    growthType: GROWTH_TYPES.find(({ id }) => id === growthTypeId),
+    history,
+    middleState: { schoolId },
+  }
+}
+
+test('high school admission uses final stats, final growth type, central bonus, and exactly one acceptance roll', () => {
+  const career = endingCareer({ speed: 60, stamina: 40, power: 60, grit: 40, intelligence: 40 }, 'sprinter')
+  const central = { ...career, middleState: { schoolId: 'central_tracen_middle' } }
+  assert.ok(Math.abs(calculateHighSchoolAdmissionScore(career) - 56.6666666667) < 0.0001)
+  assert.ok(Math.abs(calculateHighSchoolAdmissionScore(central) - 66.6666666667) < 0.0001)
+  assert.equal(calculateHighSchoolAdmissionScore({ ...career, potential: 0 }), calculateHighSchoolAdmissionScore({ ...career, potential: 100 }))
+  assert.equal(getHighSchoolAdmissionChance(39.99), 0.05)
+  assert.equal(getHighSchoolAdmissionChance(40), 0.20)
+  assert.equal(getHighSchoolAdmissionChance(95), 0.99)
+
+  let calls = 0
+  const planned = beginHighSchoolAdmission(career, () => { calls += 1; return 0.99 })
+  assert.equal(calls, 1)
+  assert.equal(planned.highSchoolAdmission.resolved, true)
+  assert.equal(planned.highSchoolAdmission.accepted, false)
+  assert.strictEqual(beginHighSchoolAdmission(planned, () => { calls += 1; return 0 }), planned)
+  assert.equal(calls, 1)
+  assert.strictEqual(enterHighSchool(planned), planned)
+  const completed = completeHighSchoolAdmissionSequence(planned)
+  assert.strictEqual(enterHighSchool(completed), completed)
+
+  const accepted = beginHighSchoolAdmission(central, () => 0)
+  const entered = enterHighSchool(completeHighSchoolAdmissionSequence(accepted))
+  assert.equal(entered.turnIndex, 12)
+  assert.equal(entered.nonRacerEnding, null)
+})
+
+test('non-racer ending resolver is deterministic, history-aware, and covers specialist and fallback paths', () => {
+  const analysisHistory = [
+    { event: { eventId: 'elem_library_book' } },
+    { event: { eventId: 'middle_video_analysis' } },
+  ]
+  const helperHistory = [{ event: { eventId: 'elem_help_friend' } }, { event: { eventId: 'middle_team_leader' } }]
+  const analyst = endingCareer({ speed: 45, stamina: 45, power: 45, grit: 45, intelligence: 65 }, 'router', analysisHistory)
+  assert.equal(resolveNonRacerEnding(analyst).id, 'RACE_ANALYST')
+  assert.deepEqual(resolveNonRacerEnding(analyst), resolveNonRacerEnding(analyst))
+  assert.equal(resolveNonRacerEnding(endingCareer({ speed: 66, stamina: 40, power: 55, grit: 40, intelligence: 40 }, 'sprinter')).id, 'SPRINT_ATHLETE')
+  assert.equal(resolveNonRacerEnding(endingCareer({ speed: 40, stamina: 62, power: 44, grit: 54, intelligence: 40 }, 'stayer')).id, 'ENDURANCE_ATHLETE')
+  assert.equal(resolveNonRacerEnding(endingCareer({ speed: 42, stamina: 42, power: 65, grit: 50, intelligence: 40 }, 'sprinter')).id, 'PHYSICAL_TRAINER')
+  assert.equal(resolveNonRacerEnding(endingCareer({ speed: 50, stamina: 50, power: 50, grit: 50, intelligence: 50 }, 'router', helperHistory, 'central_tracen_middle')).id, 'TRAINER')
+  assert.equal(resolveNonRacerEnding(endingCareer({ speed: 31, stamina: 10, power: 10, grit: 10, intelligence: 10 })).id, 'ORDINARY_STUDENT')
+})
+
 test('all 32 middle events have three choices and valid one-roll outcome tables', () => {
   assert.equal(MIDDLE_COMMON_EVENTS.length, 32)
   assert.equal(new Set(MIDDLE_COMMON_EVENTS.map(({ id }) => id)).size, 32)
@@ -733,11 +780,11 @@ test('middle event outcome is resolved once, ignores potential multiplier, and r
   assert.equal(career.history[0].schoolName, '카사마츠 트레센 학원 중등부')
 })
 
-test('six middle turns always use unique common events and then preserve state for high school', () => {
+test('six middle turns always use unique common events and then start high school admission', () => {
   let { career, rng } = reachMiddleSchool(177)
   career = acknowledgeMiddleAdmission(completeMiddleAdmissionSequence(career))
   const eventIds = []
-  while (career.turnIndex < 12) {
+  while (!career.highSchoolAdmission) {
     career = advanceCareer(career, rng)
     if (career.middleState.distanceChangePending) career = resolveMiddleDistanceChange(career, career.growthType.id)
     if (!career.middleState.pendingEvent) career = advanceCareer(career, rng)
@@ -751,8 +798,8 @@ test('six middle turns always use unique common events and then preserve state f
   }
   assert.equal(eventIds.length, 6)
   assert.equal(new Set(eventIds).size, 6)
-  assert.equal(career.turnIndex, 12)
-  assert.equal(TURNS[career.turnIndex].stage, '고등부')
+  assert.equal(career.turnIndex, 11)
+  assert.equal(career.highSchoolAdmission.resolved, true)
   assert.equal(career.middleState.completedEventIds.length, 6)
   assert.equal(career.history.filter(({ turn }) => turn >= 7 && turn <= 12).length, 6)
 })

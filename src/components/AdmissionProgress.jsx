@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-export default function AdmissionProgress({ plan, speed, onSpeedChange, onComplete }) {
+export default function AdmissionProgress({ plan, speed, onSpeedChange, onComplete, eyebrow = 'MIDDLE SCHOOL ADMISSION', title = <>중앙 트레센 학원 중등부<br />입학 선발 전형</> }) {
   const [progress, setProgress] = useState(0)
   const elapsedRef = useRef(0)
   const completedRef = useRef(false)
@@ -37,8 +37,8 @@ export default function AdmissionProgress({ plan, speed, onSpeedChange, onComple
       <section className="turn-progress-card admission-progress-card" role="dialog" aria-modal="true" aria-labelledby="admission-progress-title">
         <header>
           <div>
-            <p>MIDDLE SCHOOL ADMISSION</p>
-            <h2 id="admission-progress-title">중앙 트레센 학원 중등부<br />입학 선발 전형</h2>
+            <p>{eyebrow}</p>
+            <h2 id="admission-progress-title">{title}</h2>
           </div>
           <div className="speed-control" aria-label="진행 속도">
             {[1, 2].map((value) => <button type="button" key={value} className={speed === value ? 'active' : ''} aria-pressed={speed === value} onClick={() => onSpeedChange(value)}>{value}x</button>)}

@@ -70,8 +70,13 @@ export function canRollRegularSchoolEvent(career, currentGrade) {
   )
 }
 
-export function getEligibleCommonEvents(career) {
-  return ELEMENTARY_COMMON_EVENTS.filter(({ id }) => !career.elementaryEventState.completedEventIds.includes(id))
+export function getEligibleCommonEvents(career, grade = career.turnIndex + 1) {
+  return ELEMENTARY_COMMON_EVENTS.filter((event) => (
+    event.type === 'COMMON'
+    && grade >= event.minGrade
+    && grade <= event.maxGrade
+    && !career.elementaryEventState.completedEventIds.includes(event.id)
+  ))
 }
 
 export function getEligibleSchoolEvents(career, { excludeSignature = false } = {}) {
@@ -98,6 +103,7 @@ export function getElementaryEvent(career, grade, rng = Math.random) {
     if (schoolEvents.length) return randomChoice(schoolEvents, rng)
   }
 
-  const commonEvents = getEligibleCommonEvents(career)
-  return randomChoice(commonEvents.length ? commonEvents : ELEMENTARY_COMMON_EVENTS, rng)
+  const commonEvents = getEligibleCommonEvents(career, grade)
+  const gradeEvents = ELEMENTARY_COMMON_EVENTS.filter((event) => grade >= event.minGrade && grade <= event.maxGrade)
+  return randomChoice(commonEvents.length ? commonEvents : gradeEvents, rng)
 }

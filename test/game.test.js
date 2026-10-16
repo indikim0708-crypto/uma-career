@@ -7,8 +7,9 @@ import { getNaturalConditionWeights, getNextCondition, rollNaturalConditionChang
 import { chooseGrowthType, createCareer, createInitialStats, rerollCareer } from '../src/game/createCareer.js'
 import { ELEMENTARY_COMMON_EVENTS } from '../src/data/elementaryEvents.js'
 import { ELEMENTARY_SCHOOL_EVENTS } from '../src/data/schoolEvents.js'
-import { applyEventOutcome, moveCondition, resolveEventChoice } from '../src/game/eventResolver.js'
-import { createElementaryEventState, getElementaryEvent } from '../src/game/eventScheduler.js'
+import { applyEventOutcome, materializeOutcome, moveCondition, resolveEventChoice } from '../src/game/eventResolver.js'
+import { createElementaryEventState, getElementaryEvent, getEligibleCommonEvents } from '../src/game/eventScheduler.js'
+import { validateElementaryCommonEvents } from '../src/game/eventValidation.js'
 import { acknowledgeMiddleAdmission, advanceCareer, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from '../src/game/growth.js'
 import { generatePotential } from '../src/game/random.js'
 import { generateRandomUmaName, getValidNameParts } from '../src/game/nameGenerator.js'
@@ -223,6 +224,40 @@ test('all event choices have exactly three outcomes with total weight 100', () =
   }
 })
 
+test('elementary common event catalog has 50 unique, grade-valid events', () => {
+  assert.equal(ELEMENTARY_COMMON_EVENTS.length, 50)
+  assert.equal(new Set(ELEMENTARY_COMMON_EVENTS.map(({ id }) => id)).size, 50)
+  assert.deepEqual(validateElementaryCommonEvents(ELEMENTARY_COMMON_EVENTS), [])
+})
+
+test('elementary common event candidates honor grade ranges and completed ids', () => {
+  const career = eventCareer({ id: 'fuchu_central', name: '후추 중앙 초등학교' }, {
+    completedEventIds: ['common_relay', 'elem_snow_day'],
+  })
+  const firstGrade = getEligibleCommonEvents(career, 1)
+  assert.ok(firstGrade.every(({ minGrade, maxGrade }) => minGrade <= 1 && maxGrade >= 1))
+  assert.ok(!firstGrade.some(({ id }) => id === 'elem_next_stage'))
+  assert.ok(!firstGrade.some(({ id }) => id === 'common_relay' || id === 'elem_snow_day'))
+
+  const fifthGrade = getEligibleCommonEvents(career, 5)
+  assert.ok(fifthGrade.some(({ id }) => id === 'elem_next_stage'))
+  assert.ok(fifthGrade.every(({ minGrade, maxGrade }) => minGrade <= 5 && maxGrade >= 5))
+})
+
+test('elementary dynamic rewards materialize once from career state and growth type', () => {
+  const stats = { speed: 10, stamina: 20, power: 30, grit: 40, intelligence: 50 }
+  const router = GROWTH_TYPES.find(({ id }) => id === 'router')
+  const assignment = ELEMENTARY_COMMON_EVENTS.find(({ id }) => id === 'common_assignment')
+  const assignmentOutcome = assignment.choices[0].outcomes[0]
+  const materialized = materializeOutcome(assignmentOutcome, stats, () => 0, router)
+  assert.deepEqual(materialized.statChanges, { grit: 2, speed: 6 })
+
+  const fitness = ELEMENTARY_COMMON_EVENTS.find(({ id }) => id === 'common_fitness_test')
+  const distinct = materializeOutcome(fitness.choices[2].outcomes[1], stats, seededRandom(99), router)
+  assert.equal(Object.keys(distinct.statChanges).length, 3)
+  assert.ok(Object.values(distinct.statChanges).every((amount) => amount === 1))
+})
+
 function eventCareer(school, stateOverrides = {}) {
   const base = chooseGrowthType(createCareer({ lastName: '테스트', firstName: '선수' }, seededRandom(4)), 'router')
   return {
@@ -248,6 +283,35 @@ test('ordinary schools receive six unique common events in elementary school', (
   }
   assert.equal(ids.length, 6)
   assert.equal(new Set(ids).size, 6)
+})
+
+test('multiple elementary careers draw from the full 50-event common pool without repeats', () => {
+  const seen = new Set()
+  for (let seed = 1; seed <= 500; seed += 1) {
+    const rng = seededRandom(seed)
+    const career = eventCareer({ id: 'fuchu_central', name: '후추 중앙 초등학교' })
+    const completedEventIds = []
+    for (let grade = 1; grade <= 6; grade += 1) {
+      career.turnIndex = grade - 1
+      career.elementaryEventState.completedEventIds = completedEventIds
+      const event = getElementaryEvent(career, grade, rng)
+      assert.ok(!completedEventIds.includes(event.id), `${seed}/${grade}/${event.id}`)
+      completedEventIds.push(event.id)
+      seen.add(event.id)
+    }
+  }
+  assert.equal(seen.size, 50)
+})
+
+test('elementary event rewards do not use the potential growth multiplier', () => {
+  const event = ELEMENTARY_COMMON_EVENTS.find(({ id }) => id === 'common_sprint')
+  const career = {
+    ...eventCareer({ id: 'fuchu_central', name: '후추 중앙 초등학교' }),
+    potential: 100,
+  }
+  career.elementaryEventState.pendingEvent = event
+  const selected = selectElementaryEventChoice(career, 'a', () => 0)
+  assert.deepEqual(selected.elementaryEventState.pendingOutcome.statChanges, { speed: 5, power: 2 })
 })
 
 test('a special school without signature gets one or two school events and never its signature', () => {

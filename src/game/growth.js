@@ -103,7 +103,7 @@ export function selectElementaryEventChoice(career, choiceId, rng = Math.random)
     ...career,
     elementaryEventState: {
       ...career.elementaryEventState,
-      pendingOutcome: { choiceId, ...materializeOutcome(resolved, career.stats, rng) },
+      pendingOutcome: { choiceId, ...materializeOutcome(resolved, career.stats, rng, career.growthType) },
     },
   }
 }

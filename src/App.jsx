@@ -333,7 +333,7 @@ function DistanceChangeModal({ career, onSelect }) {
       <section className="event-modal distance-change-modal" role="dialog" aria-modal="true" aria-labelledby="distance-change-title">
         <p className="event-badge">SPECIAL EVENT</p>
         <h2 id="distance-change-title">거리 전향 제안</h2>
-        <p className="event-situation">코치가 최근 훈련 기록을 살펴보더니\n다른 거리 적성도 시험해보는 것이 어떻겠냐고 제안했습니다.\n\n현재 성장형을 유지할 수도 있고,\n다른 성장형으로 전향할 수도 있습니다.</p>
+        <p className="event-situation">코치가 최근 훈련 기록을 살펴보더니 다른 거리 적성도 시험해보는 것이 어떻겠냐고 제안했습니다. 현재 성장형을 유지할 수도 있고, 다른 성장형으로 전향할 수도 있습니다.</p>
         <div className="event-choices">
           {choices.map((type, index) => (
             <button className={index === 0 ? 'keep-current' : ''} type="button" key={type.id} onClick={() => onSelect(type.id)}>

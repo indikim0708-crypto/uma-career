@@ -1,17 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import { GROWTH_TYPES } from './data/growthTypes.js'
 import { MAX_STAT, STATS } from './data/stats.js'
 import { TURNS } from './data/turns.js'
 import { createCareer, chooseGrowthType, rerollCareer } from './game/createCareer.js'
 import { getCareerEvaluation } from './game/evaluation.js'
-import { acknowledgeMiddleAdmission, advanceCareer, displayStat, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from './game/growth.js'
+import { acknowledgeMiddleAdmission, advanceCareer, completeMiddleAdmissionSequence, displayStat, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from './game/growth.js'
 import { resolveMiddleDistanceChange } from './game/middleDistanceChange.js'
 import { finishMiddleEvent, finishMiddleLegend, selectMiddleEventChoice, selectMiddleLegend } from './game/middleEvents.js'
 import { generateRandomUmaName } from './game/nameGenerator.js'
 import { getElementarySchoolById } from './data/schools.js'
 import { getMiddleSchoolById } from './data/middleSchools.js'
 import TurnProgress from './components/TurnProgress.jsx'
+import AdmissionProgress from './components/AdmissionProgress.jsx'
 import { createTurnProgressPlan } from './game/turnProgress.js'
 
 const SCREENS = {
@@ -279,17 +280,28 @@ function EventModal({ event, outcome, onSelect, onContinue }) {
 }
 
 function AdmissionModal({ career, onContinue }) {
-  const passed = career.middleState.centralAdmissionPassed
+  const plan = career.middleState.admissionPlan
+  const [destinationVisible, setDestinationVisible] = useState(plan.centralAccepted)
+  useEffect(() => {
+    if (plan.centralAccepted) return undefined
+    const timer = window.setTimeout(() => setDestinationVisible(true), 1300)
+    return () => window.clearTimeout(timer)
+  }, [plan.centralAccepted])
+
+  const passed = plan.centralAccepted
+  const destination = getMiddleSchoolById(plan.destinationSchoolId)
+  const internalProgression = passed && plan.isCentralElementary
   return (
     <div className="event-backdrop" role="presentation">
       <section className="event-modal admission-modal" role="dialog" aria-modal="true" aria-labelledby="admission-title">
         <p className="event-badge">MIDDLE SCHOOL ADMISSION</p>
         <img className="admission-emblem" src="/assets/trecen.png" alt="중앙 트레센 학원 로고" />
         <h2 id="admission-title">중앙 트레센 학원</h2>
-        <p className={`admission-result ${passed ? 'passed' : 'failed'}`}>{passed ? '합격' : '불합격'}</p>
-        {!passed && <p className="admission-destination"><span>최종 진학</span><strong>{career.middleState.schoolName}</strong></p>}
-        {passed && <p className="admission-destination"><span>최종 진학</span><strong>중앙 트레센 학원 중등부</strong></p>}
-        <button className="primary-button event-continue" type="button" onClick={onContinue}><span>중등부로 진학</span><span aria-hidden="true">→</span></button>
+        <p className={`admission-result ${passed ? 'passed' : 'failed'}`}>{passed ? (internalProgression ? '내부 진학 승인' : '합격') : '불합격'}</p>
+        {passed && <p className="event-situation">{internalProgression ? '중앙 트레센 학원 중등부 진학이\n승인되었습니다.' : '중앙 트레센 학원 중등부에\n합격했습니다.'}</p>}
+        {!passed && !destinationVisible && <p className="event-situation">아쉽게도 중앙 트레센의\n최종 선발 명단에 들지 못했습니다.\n\n잠시 후, 다른 트레센 학원에서 연락이 도착했습니다.</p>}
+        {!passed && destinationVisible && <><p className="event-situation">새로운 무대가 결정되었습니다.</p><p className="admission-destination"><span>입학 제안이 도착했습니다</span><strong>{destination?.displayName ?? career.middleState.schoolName}</strong></p></>}
+        {(passed || destinationVisible) && <button className="primary-button event-continue" type="button" onClick={onContinue}><span>중등부로 진학</span><span aria-hidden="true">→</span></button>}
       </section>
     </div>
   )
@@ -352,7 +364,7 @@ function LegendEventModal({ event, outcome, onSelect, onContinue }) {
   )
 }
 
-function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, onProgressEventTrigger, onProgressLegendTrigger, onProgressComplete, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onDistanceChange, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue }) {
+function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, onProgressEventTrigger, onProgressLegendTrigger, onProgressComplete, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onAdmissionSequenceComplete, onDistanceChange, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue }) {
   const currentTurn = TURNS[career.turnIndex]
   const middleSchool = currentTurn.stage === '중등부' ? getMiddleSchoolById(career.middleState.schoolId) : null
   const summaryLocation = middleSchool?.location ?? career.region.name
@@ -395,7 +407,8 @@ function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, o
       {career.transferState?.offered && !career.transferState.resolved && <TransferModal career={career} onDecision={onTransferDecision} />}
       {turnProgress && <TurnProgress plan={turnProgress} speed={progressSpeed} paused={progressPaused} onSpeedChange={onProgressSpeedChange} onEventTrigger={onProgressEventTrigger} onLegendTrigger={onProgressLegendTrigger} onComplete={onProgressComplete} />}
       {elementaryEventOpen && <EventModal event={career.elementaryEventState.pendingEvent} outcome={career.elementaryEventState.pendingOutcome} onSelect={onEventChoice} onContinue={onEventContinue} />}
-      {!turnProgress && career.middleState?.admissionPending && <AdmissionModal career={career} onContinue={onAdmissionContinue} />}
+      {!turnProgress && career.middleState?.admissionPending && !career.middleState.admissionPlan?.sequenceCompleted && <AdmissionProgress plan={career.middleState.admissionPlan} speed={progressSpeed} onSpeedChange={onProgressSpeedChange} onComplete={onAdmissionSequenceComplete} />}
+      {!turnProgress && career.middleState?.admissionPending && career.middleState.admissionPlan?.sequenceCompleted && <AdmissionModal career={career} onContinue={onAdmissionContinue} />}
       {!turnProgress && career.middleState?.distanceChangePending && <DistanceChangeModal career={career} onSelect={onDistanceChange} />}
       {middleEventOpen && <EventModal event={career.middleState.pendingEvent} outcome={career.middleState.pendingOutcome} onSelect={onMiddleEventChoice} onContinue={onMiddleEventContinue} />}
       {legendOpen && <LegendEventModal event={career.middleState.pendingLegend} outcome={career.middleState.pendingLegendOutcome} onSelect={onLegendSelect} onContinue={onLegendContinue} />}
@@ -508,6 +521,7 @@ function App() {
     setTurnProgress(prepared.plan)
   }
 
+  const handleAdmissionSequenceComplete = () => setCareer((current) => completeMiddleAdmissionSequence(current))
   const handleAdmissionContinue = () => setCareer((current) => acknowledgeMiddleAdmission(current))
   const handleDistanceChange = (growthTypeId) => {
     const resolved = resolveMiddleDistanceChange(career, growthTypeId)
@@ -535,7 +549,7 @@ function App() {
   if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onRandomName={randomizeName} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
   if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
   if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
-  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} />
+  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onAdmissionSequenceComplete={handleAdmissionSequenceComplete} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} />
   if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
   return <Intro onStart={startNewCareer} />
 }

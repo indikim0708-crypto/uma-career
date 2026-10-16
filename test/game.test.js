@@ -10,7 +10,7 @@ import { ELEMENTARY_SCHOOL_EVENTS } from '../src/data/schoolEvents.js'
 import { applyEventOutcome, materializeOutcome, moveCondition, resolveEventChoice } from '../src/game/eventResolver.js'
 import { createElementaryEventState, getElementaryEvent, getEligibleCommonEvents } from '../src/game/eventScheduler.js'
 import { validateElementaryCommonEvents } from '../src/game/eventValidation.js'
-import { acknowledgeMiddleAdmission, advanceCareer, applyBaseGrowth, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from '../src/game/growth.js'
+import { acknowledgeMiddleAdmission, advanceCareer, applyBaseGrowth, completeMiddleAdmissionSequence, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from '../src/game/growth.js'
 import { generatePotential } from '../src/game/random.js'
 import { generateRandomUmaName, getValidNameParts } from '../src/game/nameGenerator.js'
 import { ALL_ELEMENTARY_SCHOOLS, CENTRAL_TRACEN_SCHOOL, getElementarySchoolById } from '../src/data/schools.js'
@@ -24,6 +24,7 @@ import { getEligibleLegendEvents, rollLegendTargetCount, scheduleMiddleLegends }
 import { resolveMiddleDistanceChange } from '../src/game/middleDistanceChange.js'
 import { ELEMENTARY_PROGRESS_MESSAGES, MIDDLE_PROGRESS_MESSAGES, PROGRESS_MESSAGES } from '../src/data/progressMessages.js'
 import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDurationMs, selectTurnProgressMessages, TURN_PROGRESS_DURATION_MS } from '../src/game/turnProgress.js'
+import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -48,7 +49,7 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
       career = selectElementaryEventChoice(career, career.elementaryEventState.pendingEvent.choices[0].id, rng)
       career = finishElementaryEvent(career, rng)
     }
-    if (career.middleState?.admissionPending) career = acknowledgeMiddleAdmission(career)
+    if (career.middleState?.admissionPending) career = acknowledgeMiddleAdmission(completeMiddleAdmissionSequence(career))
     if (career.middleState?.distanceChangePending) career = resolveMiddleDistanceChange(career, career.growthType.id)
     if (career.middleState?.pendingEvent) {
       career = selectMiddleEventChoice(career, career.middleState.pendingEvent.choices[0].id, rng)
@@ -622,6 +623,41 @@ test('elementary graduation assigns exactly one of five middle Tracen schools an
   assert.equal(central.summaryName, '중앙 트레센 학원')
 })
 
+test('middle admission is resolved once at graduation and stores the complete selection sequence', () => {
+  const { career } = reachMiddleSchool(122)
+  const plan = career.middleState.admissionPlan
+  assert.equal(plan.resolved, true)
+  assert.equal(plan.durationMs, ADMISSION_SEQUENCE_DURATION_MS)
+  assert.equal(plan.centralAccepted, career.middleState.centralAdmissionPassed)
+  assert.equal(plan.destinationSchoolId, career.middleState.schoolId)
+  assert.equal(plan.sequenceCompleted, false)
+  assert.deepEqual(plan.messages.map(({ id }) => id), [
+    'application', 'report-card', 'records', 'interview', 'growth-interview', 'fitness', 'starting-line', 'race-start', 'competition', 'race-strength', 'review', 'final-list', 'result',
+  ])
+  assert.ok(plan.messages.some(({ text }) => text === '초등학교 성적표를 확인하고 있습니다.'))
+  assert.ok(plan.messages.some(({ text }) => text === '면접을 진행하고 있습니다.'))
+  assert.ok(plan.messages.some(({ text }) => text === '선발 레이스가 시작되었습니다!'))
+
+  const started = advanceCareer(career, () => 0)
+  assert.strictEqual(started, career)
+  const completed = completeMiddleAdmissionSequence(career)
+  assert.equal(completed.middleState.admissionPlan.sequenceCompleted, true)
+  assert.strictEqual(completeMiddleAdmissionSequence(completed), completed)
+  const entered = acknowledgeMiddleAdmission(completed)
+  assert.equal(entered.middleState.admissionPending, false)
+  assert.equal(entered.middleState.schoolId, plan.destinationSchoolId)
+})
+
+test('central elementary applicants retain the pre-resolved outcome and receive internal progression messages', () => {
+  let { career } = reachMiddleSchool(123)
+  career = { ...career, school: CENTRAL_TRACEN_SCHOOL }
+  const plan = createAdmissionPlan(career, { school: MIDDLE_SCHOOLS[0], centralAdmissionPassed: true })
+  assert.equal(plan.destinationSchoolId, 'central_tracen_middle')
+  assert.equal(plan.isCentralElementary, true)
+  assert.ok(plan.messages.some(({ text }) => text === '초등부 지도 기록을 검토하고 있습니다.'))
+  assert.ok(plan.messages.some(({ text }) => text === '중등부 진학 면접을 진행하고 있습니다.'))
+})
+
 test('all 32 middle events have three choices and valid one-roll outcome tables', () => {
   assert.equal(MIDDLE_COMMON_EVENTS.length, 32)
   assert.equal(new Set(MIDDLE_COMMON_EVENTS.map(({ id }) => id)).size, 32)
@@ -667,7 +703,7 @@ test('legend target roll, candidates, and schedules are unique and school-specif
 
 test('middle event outcome is resolved once, ignores potential multiplier, and records optional legend in the same turn', () => {
   let { career } = reachMiddleSchool(129)
-  career = acknowledgeMiddleAdmission(career)
+  career = acknowledgeMiddleAdmission(completeMiddleAdmissionSequence(career))
   career = {
     ...career,
     potential: 100,
@@ -699,7 +735,7 @@ test('middle event outcome is resolved once, ignores potential multiplier, and r
 
 test('six middle turns always use unique common events and then preserve state for high school', () => {
   let { career, rng } = reachMiddleSchool(177)
-  career = acknowledgeMiddleAdmission(career)
+  career = acknowledgeMiddleAdmission(completeMiddleAdmissionSequence(career))
   const eventIds = []
   while (career.turnIndex < 12) {
     career = advanceCareer(career, rng)
@@ -723,7 +759,7 @@ test('six middle turns always use unique common events and then preserve state f
 
 test('the turn 10 distance-change special event resolves once, preserves career values, and uses the new growth type immediately', () => {
   let { career } = reachMiddleSchool(190)
-  career = acknowledgeMiddleAdmission(career)
+  career = acknowledgeMiddleAdmission(completeMiddleAdmissionSequence(career))
   career = {
     ...career,
     turnIndex: 9,

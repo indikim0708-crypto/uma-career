@@ -10,6 +10,7 @@ import { assignMiddleSchool } from './middleAdmission.js'
 import { scheduleMiddleLegends } from './middleLegend.js'
 import { applyMiddleNaturalCondition, chooseMiddleEvent } from './middleEvents.js'
 import { beginMiddleDistanceChange, isMiddleDistanceChangeDue } from './middleDistanceChange.js'
+import { createAdmissionPlan } from './admissionSequence.js'
 
 export function getPotentialMultiplier(potential) {
   if (potential < 20) return 0.9
@@ -61,6 +62,7 @@ function completeTurn(career, expectedGrowth, rng, eventDetails = {}) {
       centralAdmissionChance: admission.centralAdmissionChance,
       centralAdmissionPassed: admission.centralAdmissionPassed,
       admissionPending: true,
+      admissionPlan: createAdmissionPlan(completed, admission),
       completedEventIds: [],
       legendTargetCount: 0,
       legendScheduled: false,
@@ -164,8 +166,14 @@ export function advanceCareer(career, rng = Math.random) {
 }
 
 export function acknowledgeMiddleAdmission(career) {
-  if (!career.middleState?.admissionPending) return career
+  if (!career.middleState?.admissionPending || !career.middleState.admissionPlan?.sequenceCompleted) return career
   return { ...career, middleState: { ...career.middleState, admissionPending: false } }
+}
+
+export function completeMiddleAdmissionSequence(career) {
+  const plan = career.middleState?.admissionPlan
+  if (!career.middleState?.admissionPending || !plan || plan.sequenceCompleted) return career
+  return { ...career, middleState: { ...career.middleState, admissionPlan: { ...plan, sequenceCompleted: true } } }
 }
 
 export function resolveTransferAndStartElementaryTurn(career, accepted, rng = Math.random) {

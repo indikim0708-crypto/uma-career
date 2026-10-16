@@ -9,6 +9,7 @@ import { isTransferOfferDue, markTransferOffered, resolveTransferDecision } from
 import { assignMiddleSchool } from './middleAdmission.js'
 import { scheduleMiddleLegends } from './middleLegend.js'
 import { applyMiddleNaturalCondition, chooseMiddleEvent } from './middleEvents.js'
+import { beginMiddleDistanceChange, isMiddleDistanceChangeDue } from './middleDistanceChange.js'
 
 export function getPotentialMultiplier(potential) {
   if (potential < 20) return 0.9
@@ -69,6 +70,8 @@ function completeTurn(career, expectedGrowth, rng, eventDetails = {}) {
       pendingOutcome: null,
       pendingLegend: null,
       pendingLegendOutcome: null,
+      distanceChangePending: false,
+      distanceChangeResolved: false,
     }
     completed = { ...completed, middleState }
     completed.middleState = { ...middleState, ...scheduleMiddleLegends(completed, rng) }
@@ -132,7 +135,8 @@ export function advanceCareer(career, rng = Math.random) {
   }
 
   if (TURNS[career.turnIndex].stage === '중등부') {
-    if (career.middleState?.admissionPending || career.middleState?.pendingEvent || career.middleState?.pendingLegend) return career
+    if (career.middleState?.admissionPending || career.middleState?.pendingEvent || career.middleState?.pendingLegend || career.middleState?.distanceChangePending) return career
+    if (isMiddleDistanceChangeDue(career)) return beginMiddleDistanceChange(career)
     const turn = TURNS[career.turnIndex]
     const currentTurnHistory = beginTurnHistory(career, turn)
     const conditioned = applyMiddleNaturalCondition(career, rng)

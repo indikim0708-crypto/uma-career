@@ -233,6 +233,7 @@ button { border: 0; }
 .event-choices button { align-items: center; background: rgba(30, 27, 35, 0.94); border: 1px solid var(--line); color: var(--text); cursor: pointer; display: flex; font-size: 12px; font-weight: 700; justify-content: space-between; line-height: 1.4; min-height: 48px; padding: 10px 12px; text-align: left; width: 100%; }
 .event-choices button:active { border-color: var(--gold); background: #302938; }
 .event-choices button span { color: var(--gold); margin-left: 9px; }
+.distance-change-modal .event-choices .keep-current { border-color: rgba(232, 202, 105, 0.72); background: rgba(232, 202, 105, 0.08); }
 .outcome { color: var(--violet-soft); font-size: 19px; font-weight: 900; margin: 9px 0 8px; }
 .outcome-GREAT_SUCCESS { color: var(--gold); }
 .outcome-FAILURE { color: #ef8990; }

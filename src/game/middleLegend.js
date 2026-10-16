@@ -49,3 +49,34 @@ export function getLegendDue(career, turnNumber = career.turnIndex + 1) {
   const scheduled = career.middleState?.legendSchedule.find(({ turn, triggered }) => turn === turnNumber && !triggered)
   return scheduled ? getLegendById(scheduled.eventId) : null
 }
+
+// The distance-change special event only updates Central Tracen's unplayed
+// legend appointments.  It deliberately does not roll again: the new pool is
+// applied in its stable data order, while the originally reserved turn slots
+// remain intact.
+export function rescheduleFutureCentralLegends(career, growthTypeId) {
+  const middleState = career.middleState
+  if (middleState?.schoolId !== 'central_tracen_middle') return career
+
+  const completedIds = new Set(middleState.completedLegendIds ?? [])
+  const futureEntries = (middleState.legendSchedule ?? []).filter(({ triggered, turn }) => !triggered && turn >= career.turnIndex + 1)
+  if (!futureEntries.length) return career
+
+  const candidates = MIDDLE_LEGEND_EVENTS.filter((event) => (
+    event.schoolId === 'central_tracen_middle'
+    && event.growthTypes.includes(growthTypeId)
+    && !completedIds.has(event.id)
+  ))
+  const selected = candidates.slice(0, futureEntries.length)
+  const replacementByTurn = new Map(futureEntries.map((entry, index) => [entry.turn, selected[index]?.id ?? entry.eventId]))
+
+  return {
+    ...career,
+    middleState: {
+      ...middleState,
+      legendSchedule: middleState.legendSchedule.map((entry) => (
+        replacementByTurn.has(entry.turn) ? { ...entry, eventId: replacementByTurn.get(entry.turn) } : entry
+      )),
+    },
+  }
+}

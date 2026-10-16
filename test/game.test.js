@@ -10,7 +10,7 @@ import { ELEMENTARY_SCHOOL_EVENTS } from '../src/data/schoolEvents.js'
 import { applyEventOutcome, materializeOutcome, moveCondition, resolveEventChoice } from '../src/game/eventResolver.js'
 import { createElementaryEventState, getElementaryEvent, getEligibleCommonEvents } from '../src/game/eventScheduler.js'
 import { validateElementaryCommonEvents } from '../src/game/eventValidation.js'
-import { acknowledgeMiddleAdmission, advanceCareer, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from '../src/game/growth.js'
+import { acknowledgeMiddleAdmission, advanceCareer, applyBaseGrowth, finishElementaryEvent, resolveTransferAndStartElementaryTurn, selectElementaryEventChoice } from '../src/game/growth.js'
 import { generatePotential } from '../src/game/random.js'
 import { generateRandomUmaName, getValidNameParts } from '../src/game/nameGenerator.js'
 import { ALL_ELEMENTARY_SCHOOLS, CENTRAL_TRACEN_SCHOOL, getElementarySchoolById } from '../src/data/schools.js'
@@ -21,6 +21,7 @@ import { MIDDLE_SCHOOLS } from '../src/data/middleSchools.js'
 import { calculateAbilityScore, calculateMiddleAdmissionScore, calculateSchoolHistoryScore, chooseFallbackMiddleSchool, getCentralAdmissionChance } from '../src/game/middleAdmission.js'
 import { finishMiddleEvent, finishMiddleLegend, selectMiddleEventChoice, selectMiddleLegend } from '../src/game/middleEvents.js'
 import { getEligibleLegendEvents, rollLegendTargetCount, scheduleMiddleLegends } from '../src/game/middleLegend.js'
+import { resolveMiddleDistanceChange } from '../src/game/middleDistanceChange.js'
 import { ELEMENTARY_PROGRESS_MESSAGES, MIDDLE_PROGRESS_MESSAGES, PROGRESS_MESSAGES } from '../src/data/progressMessages.js'
 import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDurationMs, selectTurnProgressMessages, TURN_PROGRESS_DURATION_MS } from '../src/game/turnProgress.js'
 
@@ -48,6 +49,7 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
       career = finishElementaryEvent(career, rng)
     }
     if (career.middleState?.admissionPending) career = acknowledgeMiddleAdmission(career)
+    if (career.middleState?.distanceChangePending) career = resolveMiddleDistanceChange(career, career.growthType.id)
     if (career.middleState?.pendingEvent) {
       career = selectMiddleEventChoice(career, career.middleState.pendingEvent.choices[0].id, rng)
       career = finishMiddleEvent(career, rng)
@@ -701,6 +703,8 @@ test('six middle turns always use unique common events and then preserve state f
   const eventIds = []
   while (career.turnIndex < 12) {
     career = advanceCareer(career, rng)
+    if (career.middleState.distanceChangePending) career = resolveMiddleDistanceChange(career, career.growthType.id)
+    if (!career.middleState.pendingEvent) career = advanceCareer(career, rng)
     eventIds.push(career.middleState.pendingEvent.id)
     career = selectMiddleEventChoice(career, career.middleState.pendingEvent.choices[0].id, rng)
     career = finishMiddleEvent(career, rng)
@@ -715,6 +719,87 @@ test('six middle turns always use unique common events and then preserve state f
   assert.equal(TURNS[career.turnIndex].stage, '고등부')
   assert.equal(career.middleState.completedEventIds.length, 6)
   assert.equal(career.history.filter(({ turn }) => turn >= 7 && turn <= 12).length, 6)
+})
+
+test('the turn 10 distance-change special event resolves once, preserves career values, and uses the new growth type immediately', () => {
+  let { career } = reachMiddleSchool(190)
+  career = acknowledgeMiddleAdmission(career)
+  career = {
+    ...career,
+    turnIndex: 9,
+    condition: '양호',
+    growthType: GROWTH_TYPES.find(({ id }) => id === 'sprinter'),
+    middleState: {
+      ...career.middleState,
+      schoolId: 'central_tracen_middle',
+      admissionPending: false,
+      distanceChangePending: false,
+      distanceChangeResolved: false,
+      completedLegendIds: ['legend_bakushin'],
+      legendSchedule: [
+        { eventId: 'legend_bakushin', turn: 8, triggered: true },
+        { eventId: 'legend_calstone', turn: 10, triggered: false },
+        { eventId: 'legend_calstone', turn: 12, triggered: false },
+      ],
+    },
+  }
+  const originalStats = { ...career.stats }
+  const originalPotential = career.potential
+  const originalStability = career.stability
+  const originalCondition = career.condition
+  const originalHistory = career.history
+
+  const pending = advanceCareer(career, () => 0)
+  assert.equal(pending.middleState.distanceChangePending, true)
+  assert.equal(pending.middleState.pendingEvent, null)
+  assert.deepEqual(pending.stats, originalStats)
+  assert.equal(pending.condition, originalCondition)
+  assert.strictEqual(advanceCareer(pending, () => 0.9), pending)
+
+  const switched = resolveMiddleDistanceChange(pending, 'stayer')
+  assert.equal(switched.growthType.id, 'stayer')
+  assert.equal(switched.middleState.distanceChangeResolved, true)
+  assert.equal(switched.middleState.distanceChangePending, false)
+  assert.deepEqual(switched.stats, originalStats)
+  assert.equal(switched.potential, originalPotential)
+  assert.equal(switched.stability, originalStability)
+  assert.equal(switched.condition, originalCondition)
+  assert.deepEqual(switched.history.slice(1), originalHistory)
+  assert.deepEqual(switched.middleState.completedLegendIds, ['legend_bakushin'])
+  assert.deepEqual(switched.middleState.legendSchedule.map(({ eventId, turn, triggered }) => ({ eventId, turn, triggered })), [
+    { eventId: 'legend_bakushin', turn: 8, triggered: true },
+    { eventId: 'legend_creek', turn: 10, triggered: false },
+    { eventId: 'legend_mcqueen', turn: 12, triggered: false },
+  ])
+  assert.deepEqual(switched.history[0], {
+    kind: 'SPECIAL', type: 'SPECIAL', id: 'middle_distance_change', title: '거리 전향 제안',
+    periodLabel: '중등부 2학년 하반기 시작 전', previousGrowthType: 'sprinter', previousGrowthTypeName: '스프린터',
+    selectedGrowthType: 'stayer', selectedGrowthTypeName: '스테이어', changed: true, selectedChoiceText: '스테이어에 도전한다',
+  })
+  assert.strictEqual(resolveMiddleDistanceChange(switched, 'router'), switched)
+
+  const turnTen = advanceCareer(switched, () => 0)
+  assert.ok(turnTen.middleState.pendingEvent)
+  assert.deepEqual(turnTen.stats, applyBaseGrowth(switched, () => 0).stats)
+})
+
+test('keeping the current type and local Tracen legends leaves the schedule untouched', () => {
+  const base = chooseGrowthType(createCareer(seededRandom(191)), 'router')
+  const career = {
+    ...base,
+    turnIndex: 9,
+    middleState: {
+      schoolId: 'kasamatsu_tracen_middle',
+      distanceChangePending: true,
+      distanceChangeResolved: false,
+      legendSchedule: [{ eventId: 'legend_oguri', turn: 11, triggered: false }],
+      completedLegendIds: [],
+    },
+  }
+  const resolved = resolveMiddleDistanceChange(career, 'router')
+  assert.equal(resolved.growthType.id, 'router')
+  assert.equal(resolved.history[0].changed, false)
+  assert.deepEqual(resolved.middleState.legendSchedule, career.middleState.legendSchedule)
 })
 
 test('progress message data contains 100 effect-free entries for each supported stage', () => {

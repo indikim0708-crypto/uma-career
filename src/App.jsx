@@ -21,6 +21,7 @@ import { completeHighSchoolRaceSequence, dismissHighYear2Achievement, dismissHig
 import { HIGH_YEAR2_RACES, HIGH_YEAR2_ROUTE_LABELS } from './data/highSchoolYear2Races.js'
 import { TEAM_BY_ID } from './data/highSchoolTeams.js'
 import { resolveTeamTransferOffer } from './game/highSchoolTeam.js'
+import { deleteCareerSave, loadCareerSave, saveCareerState } from './game/saveSystem.js'
 
 const SCREENS = {
   HOME: 'HOME',
@@ -29,6 +30,23 @@ const SCREENS = {
   GROWTH_PLAN: 'GROWTH_PLAN',
   CAREER: 'CAREER',
   RESULT: 'RESULT',
+}
+
+function createResumeTurnProgress(career) {
+  if (!career?.currentTurnHistory || !career.growthType) return null
+  const pendingEvent = Boolean(career.elementaryEventState?.pendingEvent || career.middleState?.pendingEvent || career.highSchoolState?.pendingEvent)
+  const pendingEventFollowUp = Boolean(career.highSchoolState?.pendingRunningStyleDecision || (career.teamState?.initialOfferTeamIds?.length && !career.teamState.initialOffersResolved))
+  const pendingPostEvent = Boolean(career.middleState?.pendingLegend || career.highSchoolLegend?.pendingLegend || career.highYear2?.pendingSpecial || career.highYear3?.pendingSpecial || career.highSchoolState?.pendingRace || career.highYear2?.pendingAchievement || career.highYear3?.pendingAchievements?.length)
+  if (!pendingEvent && !pendingEventFollowUp && !pendingPostEvent) return null
+  const prepared = createTurnProgressPlan(career)
+  if (!prepared) return null
+  return {
+    ...prepared.plan,
+    eventTriggered: true,
+    eventResolved: !pendingEvent,
+    legendTriggered: pendingPostEvent,
+    legendResolved: !pendingPostEvent,
+  }
 }
 
 function Brand() {
@@ -57,7 +75,13 @@ function StatGrid({ stats, previousStats = null }) {
   )
 }
 
-function Intro({ onStart }) {
+function Intro({ save, onContinue, onStart }) {
+  const [confirmingNew, setConfirmingNew] = useState(false)
+  const summary = save?.summary
+  const growthType = GROWTH_TYPES.find(({ id }) => id === summary?.growthType)
+  const runningStyle = getRunningStyle(summary?.runningStyle)
+  const team = TEAM_BY_ID[summary?.currentTeamId]
+  const savedAt = save ? new Date(save.savedAt).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : ''
   return (
     <main className="intro page-shell">
       <div className="ambient ambient-violet" aria-hidden="true" />
@@ -66,9 +90,21 @@ function Intro({ onStart }) {
         <p className="eyebrow">THE RACE BEGINS HERE</p>
         <h1 id="page-title">UMA CAREER</h1>
         <p className="intro-subtitle">우마무스메 커리어 시뮬레이터</p>
-        <button className="primary-button" type="button" onClick={onStart}><span>NEW CAREER</span><span aria-hidden="true">→</span></button>
+        {save ? <section className="home-save-card" aria-label="저장된 커리어">
+          <p className="section-kicker">SAVED CAREER</p>
+          <h2>{summary.fullName || '이름을 정하는 중'}</h2>
+          {summary.periodLabel && <strong>{summary.completed ? '커리어 완료' : summary.periodLabel}</strong>}
+          <dl>
+            {growthType && <div><dt>성장형</dt><dd>{growthType.name}</dd></div>}
+            {runningStyle && <div><dt>각질</dt><dd>{runningStyle.label}</dd></div>}
+            {team && <div><dt>소속</dt><dd>{team.name}</dd></div>}
+          </dl>
+          <small>마지막 저장 · {savedAt}</small>
+          <div className="home-save-actions"><button className="primary-button" type="button" onClick={onContinue}><span>이어하기</span><span aria-hidden="true">→</span></button><button className="secondary-button" type="button" onClick={() => setConfirmingNew(true)}>새로하기</button></div>
+        </section> : <button className="primary-button" type="button" onClick={onStart}><span>새로운 커리어 시작</span><span aria-hidden="true">→</span></button>}
         <p className="intro-note">초등부 1학년부터 고등부 3학년까지 · 24 TURNS</p>
       </section>
+      {confirmingNew && <div className="event-backdrop" role="presentation"><section className="event-modal new-career-confirm" role="dialog" aria-modal="true" aria-labelledby="new-career-title"><p className="event-badge">NEW CAREER</p><h2 id="new-career-title">새로운 커리어를 시작할까요?</h2><p className="event-situation">현재 진행 중인 커리어가 삭제됩니다. 새로운 커리어를 시작하시겠습니까?</p><div className="event-choices"><button type="button" onClick={onStart}>새로 시작<span aria-hidden="true">→</span></button><button type="button" onClick={() => setConfirmingNew(false)}>취소</button></div></section></div>}
     </main>
   )
 }
@@ -656,14 +692,38 @@ function App() {
   const [selectedType, setSelectedType] = useState(null)
   const [turnProgress, setTurnProgress] = useState(null)
   const [progressSpeed, setProgressSpeed] = useState(1)
+  const [homeSave, setHomeSave] = useState(() => loadCareerSave())
+
+  const checkpointCareer = (nextCareer, nextScreen = screen, nextNames = names, nextSelectedType = selectedType) => {
+    setCareer(nextCareer)
+    const snapshot = saveCareerState({ screen: nextScreen, names: nextNames, career: nextCareer, selectedType: nextSelectedType })
+    if (snapshot) setHomeSave(snapshot)
+    if (nextScreen !== screen) setScreen(nextScreen)
+  }
 
   const startNewCareer = () => {
+    deleteCareerSave()
+    setHomeSave(null)
     setNames({ lastName: '', firstName: '' })
     setCareer(null)
     setSelectedType(null)
     setTurnProgress(null)
     setProgressSpeed(1)
     setScreen(SCREENS.NAME_ENTRY)
+  }
+
+  const continueCareer = () => {
+    const save = loadCareerSave()
+    if (!save) { setHomeSave(null); return }
+    const restored = save.gameState
+    const nextScreen = restored.career?.complete ? SCREENS.RESULT : restored.screen
+    setNames(restored.names)
+    setCareer(restored.career)
+    setSelectedType(restored.selectedType)
+    setTurnProgress(nextScreen === SCREENS.CAREER ? createResumeTurnProgress(restored.career) : null)
+    setProgressSpeed(1)
+    setScreen(nextScreen)
+    setHomeSave(save)
   }
 
   const handleNameChange = (event) => {
@@ -678,13 +738,11 @@ function App() {
       firstName: names.firstName.trim(),
     }
     setNames(normalizedNames)
-    setCareer(createCareer(normalizedNames))
-    setScreen(SCREENS.ORIGIN)
+    checkpointCareer(createCareer(normalizedNames), SCREENS.ORIGIN, normalizedNames, null)
   }
 
   const beginCareer = () => {
-    setCareer((current) => chooseGrowthType(current, selectedType))
-    setScreen(SCREENS.CAREER)
+    checkpointCareer(chooseGrowthType(career, selectedType), SCREENS.CAREER)
   }
 
   const handleAdvance = () => {
@@ -693,125 +751,120 @@ function App() {
     const next = advanceCareer(career)
     if (['초등부', '중등부', '고등부'].includes(stage) && (next.elementaryEventState.pendingEvent || next.middleState?.pendingEvent || next.highSchoolState?.pendingEvent)) {
       const prepared = createTurnProgressPlan(next)
-      setCareer(prepared.career)
+      checkpointCareer(prepared.career, next.complete ? SCREENS.RESULT : SCREENS.CAREER)
       setTurnProgress(prepared.plan)
     } else {
-      setCareer(next)
+      checkpointCareer(next, next.complete ? SCREENS.RESULT : SCREENS.CAREER)
     }
-    if (next.complete) setScreen(SCREENS.RESULT)
   }
 
-  const handleEventChoice = (choiceId) => setCareer((current) => selectElementaryEventChoice(current, choiceId))
+  const handleEventChoice = (choiceId) => checkpointCareer(selectElementaryEventChoice(career, choiceId))
 
   const handleEventContinue = () => {
-    setCareer((current) => finishElementaryEvent(current))
+    checkpointCareer(finishElementaryEvent(career))
     setTurnProgress((current) => current ? { ...current, eventResolved: true } : current)
   }
 
   const handleTransferDecision = (accepted) => {
     const next = resolveTransferAndStartElementaryTurn(career, accepted)
     const prepared = createTurnProgressPlan(next)
-    setCareer(prepared.career)
+    checkpointCareer(prepared.career)
     setTurnProgress(prepared.plan)
   }
 
-  const handleAdmissionSequenceComplete = () => setCareer((current) => completeMiddleAdmissionSequence(current))
-  const handleAdmissionContinue = () => setCareer((current) => acknowledgeMiddleAdmission(current))
-  const handleHighAdmissionSequenceComplete = () => setCareer((current) => completeHighSchoolAdmissionSequence(current))
+  const handleAdmissionSequenceComplete = () => checkpointCareer(completeMiddleAdmissionSequence(career))
+  const handleAdmissionContinue = () => checkpointCareer(acknowledgeMiddleAdmission(career))
+  const handleHighAdmissionSequenceComplete = () => checkpointCareer(completeHighSchoolAdmissionSequence(career))
   const handleHighAdmissionContinue = () => {
     if (career.highSchoolAdmission?.accepted) {
-      setCareer((current) => enterHighSchool(current))
+      checkpointCareer(enterHighSchool(career))
       return
     }
-    setCareer((current) => completeNonRacerCareer(current))
+    checkpointCareer(completeNonRacerCareer(career), SCREENS.RESULT)
     setScreen('ANOTHER_PATH')
   }
   const handleDistanceChange = (growthTypeId) => {
     const resolved = resolveMiddleDistanceChange(career, growthTypeId)
     const next = advanceCareer(resolved)
     const prepared = createTurnProgressPlan(next)
-    setCareer(prepared.career)
+    checkpointCareer(prepared.career)
     setTurnProgress(prepared.plan)
   }
-  const handleMiddleEventChoice = (choiceId) => setCareer((current) => selectMiddleEventChoice(current, choiceId))
+  const handleMiddleEventChoice = (choiceId) => checkpointCareer(selectMiddleEventChoice(career, choiceId))
   const handleMiddleEventContinue = () => {
-    setCareer((current) => finishMiddleEvent(current))
+    checkpointCareer(finishMiddleEvent(career))
     setTurnProgress((current) => current ? { ...current, eventResolved: true } : current)
   }
-  const handleLegendSelect = () => setCareer((current) => selectMiddleLegend(current))
+  const handleLegendSelect = () => checkpointCareer(selectMiddleLegend(career))
   const handleLegendContinue = () => {
-    setCareer((current) => finishMiddleLegend(current))
+    checkpointCareer(finishMiddleLegend(career))
     setTurnProgress((current) => current ? { ...current, legendResolved: true } : current)
   }
-  const handleHighLegendSelect = () => setCareer((current) => selectHighSchoolLegendChoice(current))
+  const handleHighLegendSelect = () => checkpointCareer(selectHighSchoolLegendChoice(career))
   const handleHighLegendContinue = () => {
     const next = finishHighSchoolLegend(career)
-    setCareer(next)
+    checkpointCareer(next, next.complete ? SCREENS.RESULT : SCREENS.CAREER)
     const postTurnPending = Boolean(next.highYear2?.pendingSpecial || next.highYear3?.pendingSpecial || next.highSchoolState?.pendingRace || next.highYear2?.pendingAchievement || next.highYear3?.pendingAchievements?.length)
     setTurnProgress((current) => current ? { ...current, legendResolved: !postTurnPending } : current)
-    if (next.complete) setScreen(SCREENS.RESULT)
   }
-  const handleHighEventChoice = (choiceId) => setCareer((current) => selectHighSchoolEventChoice(current, choiceId))
+  const handleHighEventChoice = (choiceId) => checkpointCareer(selectHighSchoolEventChoice(career, choiceId))
   const handleHighEventContinue = () => {
-    setCareer((current) => finishHighSchoolEvent(current))
+    checkpointCareer(finishHighSchoolEvent(career))
     setTurnProgress((current) => current ? { ...current, eventResolved: true } : current)
   }
-  const handleRunningStyleSelect = (styleId) => setCareer((current) => selectHighSchoolRunningStyle(current, styleId))
-  const handleRunningStyleContinue = () => setCareer((current) => finishHighSchoolRunningStyle(current))
-  const handleTeamInitialSelect = (teamId) => setCareer((current) => resolveInitialTeamSelection(current, teamId))
+  const handleRunningStyleSelect = (styleId) => checkpointCareer(selectHighSchoolRunningStyle(career, styleId))
+  const handleRunningStyleContinue = () => checkpointCareer(finishHighSchoolRunningStyle(career))
+  const handleTeamInitialSelect = (teamId) => checkpointCareer(resolveInitialTeamSelection(career, teamId))
   const handleTeamTransferDecision = (accepted) => {
     const resolved = resolveTeamTransferOffer(career, accepted)
     const next = advanceCareer(resolved)
     const prepared = createTurnProgressPlan(next)
-    setCareer(prepared.career)
+    checkpointCareer(prepared.career)
     setTurnProgress(prepared.plan)
   }
   const handleYear2SpecialSelect = (choiceId) => {
     const next = resolveHighYear2Special(career, choiceId)
-    setCareer(next)
+    checkpointCareer(next)
     const postTurnPending = Boolean(next.highYear2?.pendingSpecial || next.highSchoolState?.pendingRace)
     setTurnProgress((current) => current ? { ...current, legendResolved: !postTurnPending } : current)
   }
   const handleYear3SpecialSelect = (choiceId) => {
     const next = resolveHighYear3Special(career, choiceId)
-    setCareer(next)
+    checkpointCareer(next, next.complete ? SCREENS.RESULT : SCREENS.CAREER)
     const postTurnPending = Boolean(next.highYear3?.pendingSpecial || next.highSchoolState?.pendingRace || next.highYear3?.pendingAchievements?.length)
     setTurnProgress((current) => current ? { ...current, legendResolved: !postTurnPending } : current)
-    if (next.complete) setScreen(SCREENS.RESULT)
   }
-  const handleRaceSelect = (choiceId) => setCareer((current) => resolveHighSchoolRace(current, choiceId))
-  const handleRaceSequenceComplete = () => setCareer((current) => completeHighSchoolRaceSequence(current))
+  const handleRaceSelect = (choiceId) => checkpointCareer(resolveHighSchoolRace(career, choiceId))
+  const handleRaceSequenceComplete = () => checkpointCareer(completeHighSchoolRaceSequence(career))
   const handleRaceContinue = () => {
     const next = finishHighSchoolRace(career)
-    setCareer(next)
+    checkpointCareer(next, next.complete ? SCREENS.RESULT : SCREENS.CAREER)
     const postTurnPending = Boolean(next.highYear2?.pendingSpecial || next.highYear3?.pendingSpecial || next.highSchoolState?.pendingRace || next.highYear2?.pendingAchievement || next.highYear3?.pendingAchievements?.length)
     setTurnProgress((current) => current ? { ...current, legendResolved: !postTurnPending } : current)
-    if (next.complete) setScreen(SCREENS.RESULT)
   }
   const handleYear2AchievementContinue = () => {
-    setCareer((current) => dismissHighYear2Achievement(current))
+    checkpointCareer(dismissHighYear2Achievement(career))
     setTurnProgress((current) => current ? { ...current, legendResolved: true } : current)
   }
   const handleYear3AchievementContinue = () => {
     const next = dismissHighYear3Achievement(career)
-    setCareer(next)
+    checkpointCareer(next, next.complete ? SCREENS.RESULT : SCREENS.CAREER)
     const postTurnPending = Boolean(next.highYear3?.pendingSpecial || next.highSchoolState?.pendingRace || next.highYear3?.pendingAchievements?.length)
     setTurnProgress((current) => current ? { ...current, legendResolved: !postTurnPending } : current)
-    if (next.complete) setScreen(SCREENS.RESULT)
   }
 
   const triggerProgressEvent = () => setTurnProgress((current) => current ? { ...current, eventTriggered: true } : current)
   const triggerProgressLegend = () => setTurnProgress((current) => current ? { ...current, legendTriggered: true } : current)
   const completeProgress = () => setTurnProgress(null)
 
-  if (screen === SCREENS.HOME) return <Intro onStart={startNewCareer} />
+  if (screen === SCREENS.HOME) return <Intro save={homeSave} onContinue={continueCareer} onStart={startNewCareer} />
   if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onRandomName={randomizeName} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
-  if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
-  if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
+  if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => checkpointCareer(rerollCareer(career))} onConfirm={() => checkpointCareer(career, SCREENS.GROWTH_PLAN)} onBack={() => checkpointCareer(career, SCREENS.NAME_ENTRY)} />
+  if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={(typeId) => { setSelectedType(typeId); const snapshot = saveCareerState({ screen: SCREENS.GROWTH_PLAN, names, career, selectedType: typeId }); if (snapshot) setHomeSave(snapshot) }} onBegin={beginCareer} onBack={() => checkpointCareer(career, SCREENS.ORIGIN)} />
   if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onTeamInitialSelect={handleTeamInitialSelect} onTeamTransferDecision={handleTeamTransferDecision} onAdmissionContinue={handleAdmissionContinue} onAdmissionSequenceComplete={handleAdmissionSequenceComplete} onHighAdmissionSequenceComplete={handleHighAdmissionSequenceComplete} onHighAdmissionContinue={handleHighAdmissionContinue} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} onHighLegendSelect={handleHighLegendSelect} onHighLegendContinue={handleHighLegendContinue} onHighEventChoice={handleHighEventChoice} onHighEventContinue={handleHighEventContinue} onRunningStyleSelect={handleRunningStyleSelect} onRunningStyleContinue={handleRunningStyleContinue} onYear2SpecialSelect={handleYear2SpecialSelect} onYear3SpecialSelect={handleYear3SpecialSelect} onYear2AchievementContinue={handleYear2AchievementContinue} onYear3AchievementContinue={handleYear3AchievementContinue} onRaceSelect={handleRaceSelect} onRaceSequenceComplete={handleRaceSequenceComplete} onRaceContinue={handleRaceContinue} />
   if (screen === 'ANOTHER_PATH') return <AnotherPath onComplete={() => setScreen(SCREENS.RESULT)} />
   if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
-  return <Intro onStart={startNewCareer} />
+  return <Intro save={homeSave} onContinue={continueCareer} onStart={startNewCareer} />
 }
 
 export default App

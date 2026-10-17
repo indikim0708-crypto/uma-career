@@ -40,6 +40,7 @@ import { applyTeamTurnPlan, calculateTeamReputation, createInitialTeamOffers, cr
 import { INITIAL_TEAM_IDS, TEAM_BY_ID } from '../src/data/highSchoolTeams.js'
 import { STAYER_STAT_NORMS, TURN13_STAT_NORMS } from '../src/data/runningStyleRecommendationBalance.js'
 import { normalizeTurn13Stats, recommendRunningStyle, safeZScore } from '../src/game/runningStyleRecommendation.js'
+import { buildSaveSnapshot, CAREER_SAVE_KEY, deleteCareerSave, hasCareerSave, loadCareerSave, saveCareerState, validateSaveData } from '../src/game/saveSystem.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -120,6 +121,15 @@ function seededRandom(seed) {
     result = Math.imul(result ^ (result >>> 15), result | 1)
     result ^= result + Math.imul(result ^ (result >>> 7), result | 61)
     return ((result ^ (result >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function createMemoryStorage() {
+  const values = new Map()
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+    removeItem: (key) => values.delete(key),
   }
 }
 
@@ -1690,4 +1700,114 @@ test('transfer checkpoints offer only eligible stronger teams and acceptance res
   const rejected = resolveTeamTransferOffer(prepareTeamTransferCheckpoint(base, seededRandom(702)), false)
   assert.equal(rejected.teamState.currentTeamId, 'TEAM_CANOPUS')
   assert.equal(rejected.teamState.teamTenureTurnCount, 4)
+})
+
+test('career saves use schema v1 and round-trip the complete source-of-truth state', () => {
+  const storage = createMemoryStorage()
+  const names = { lastName: '세이브', firstName: '테스트' }
+  const career = {
+    ...chooseGrowthType(createCareer(names, seededRandom(801)), 'stayer'),
+    turnIndex: 17,
+    runningStyle: 'OIKOMI',
+    condition: '양호',
+    middleState: {
+      pendingEvent: null,
+      pendingLegend: { id: 'saved_legend', choiceId: null },
+      completedLegendIds: ['met_legend'],
+      legendSchedule: [{ turn: 11, eventId: 'saved_legend' }],
+    },
+    highSchoolAdmission: { resolved: true, accepted: true, score: 77, chance: 0.85 },
+    highSchoolState: {
+      pendingEvent: { id: 'saved_event', choices: [{ id: 'choice_a' }] },
+      pendingRace: { id: 'saved_race' },
+      racePlan: {
+        raceId: 'saved_race',
+        checkpoints: [{ progress: 0.5, position: 4 }],
+        finalPosition: 2,
+        completed: false,
+      },
+    },
+    highYear2: { routeId: 'CLASSIC', pendingSpecial: { id: 'saved_special' }, achievements: [{ id: 'TRIPLE_CROWN' }] },
+    highYear3: { pendingSpecial: null, pendingAchievements: [{ id: 'SPRINT_KING' }], achievements: [] },
+    teamState: {
+      currentTeamId: 'TEAM_RIGIL',
+      initialOfferTeamIds: ['TEAM_RIGIL', 'TEAM_SPICA'],
+      initialOffersResolved: true,
+      currentTurnPlan: { training: { speed: 2 }, conditionSupport: { rolled: true, success: true } },
+      history: [{ type: 'TEAM_JOIN', teamId: 'TEAM_RIGIL' }],
+    },
+  }
+
+  assert.equal(hasCareerSave(storage), false)
+  const snapshot = saveCareerState({ screen: 'CAREER', names, career, selectedType: 'stayer' }, storage, 1_760_742_900_000)
+  assert.equal(snapshot.schemaVersion, 1)
+  assert.equal(snapshot.savedAt, 1_760_742_900_000)
+  assert.equal(snapshot.summary.turn, 18)
+  assert.equal(snapshot.summary.growthType, 'stayer')
+  assert.equal(snapshot.summary.runningStyle, 'OIKOMI')
+  assert.equal(snapshot.summary.currentTeamId, 'TEAM_RIGIL')
+  assert.ok(storage.getItem(CAREER_SAVE_KEY))
+  assert.equal(hasCareerSave(storage), true)
+
+  const restored = loadCareerSave(storage)
+  assert.deepEqual(restored.gameState.career, JSON.parse(JSON.stringify(career)))
+  assert.deepEqual(restored.gameState.career.highSchoolState.racePlan, career.highSchoolState.racePlan)
+  assert.deepEqual(restored.gameState.career.teamState.initialOfferTeamIds, career.teamState.initialOfferTeamIds)
+})
+
+test('completed careers are saved and resumed on RESULT', () => {
+  const career = {
+    ...chooseGrowthType(createCareer({ lastName: '완주', firstName: '결과' }, seededRandom(802)), 'miler'),
+    turnIndex: 23,
+    complete: true,
+    history: [{ type: 'ENDING', title: '커리어 완료' }],
+  }
+  const snapshot = buildSaveSnapshot({
+    screen: 'CAREER',
+    names: { lastName: career.lastName, firstName: career.firstName },
+    career,
+    selectedType: 'miler',
+  }, 1234)
+  assert.equal(snapshot.gameState.screen, 'RESULT')
+  assert.equal(snapshot.summary.completed, true)
+  assert.equal(validateSaveData(snapshot), true)
+})
+
+test('invalid, corrupt, and unsupported saves never become continue targets', () => {
+  const storage = createMemoryStorage()
+  const originalWarn = console.warn
+  console.warn = () => {}
+  try {
+    storage.setItem(CAREER_SAVE_KEY, '{broken json')
+    assert.equal(loadCareerSave(storage), null)
+    storage.setItem(CAREER_SAVE_KEY, JSON.stringify({ schemaVersion: 2, gameState: {} }))
+    assert.equal(loadCareerSave(storage), null)
+    assert.equal(validateSaveData({ schemaVersion: 1 }), false)
+  } finally {
+    console.warn = originalWarn
+  }
+})
+
+test('storage failures are isolated and deleting a save fully removes it', () => {
+  const storage = createMemoryStorage()
+  const names = { lastName: '삭제', firstName: '테스트' }
+  const career = chooseGrowthType(createCareer(names, seededRandom(803)), 'sprinter')
+  saveCareerState({ screen: 'CAREER', names, career, selectedType: 'sprinter' }, storage)
+  assert.equal(deleteCareerSave(storage), true)
+  assert.equal(storage.getItem(CAREER_SAVE_KEY), null)
+
+  const blockedStorage = {
+    getItem: () => { throw new Error('blocked') },
+    setItem: () => { throw new Error('quota') },
+    removeItem: () => { throw new Error('blocked') },
+  }
+  const originalWarn = console.warn
+  console.warn = () => {}
+  try {
+    assert.equal(loadCareerSave(blockedStorage), null)
+    assert.equal(saveCareerState({ screen: 'CAREER', names, career, selectedType: 'sprinter' }, blockedStorage), null)
+    assert.equal(deleteCareerSave(blockedStorage), false)
+  } finally {
+    console.warn = originalWarn
+  }
 })

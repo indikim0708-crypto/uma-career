@@ -322,8 +322,8 @@ function AdmissionModal({ career, onContinue }) {
         <img className="admission-emblem" src="/assets/trecen.png" alt="중앙 트레센 학원 로고" />
         <h2 id="admission-title">중앙 트레센 학원</h2>
         <p className={`admission-result ${passed ? 'passed' : 'failed'}`}>{passed ? (internalProgression ? '내부 진학 승인' : '합격') : '불합격'}</p>
-        {passed && <p className="event-situation">{internalProgression ? '중앙 트레센 학원 중등부 진학이\n승인되었습니다.' : '중앙 트레센 학원 중등부에\n합격했습니다.'}</p>}
-        {!passed && !destinationVisible && <p className="event-situation">아쉽게도 중앙 트레센의\n최종 선발 명단에 들지 못했습니다.\n\n잠시 후, 다른 트레센 학원에서 연락이 도착했습니다.</p>}
+        {passed && <p className="event-situation">{internalProgression ? '중앙 트레센 학원 중등부 진학이 승인되었습니다.' : '중앙 트레센 학원 중등부에 합격했습니다.'}</p>}
+        {!passed && !destinationVisible && <p className="event-situation">아쉽게도 중앙 트레센의 최종 선발 명단에 들지 못했습니다. 잠시 후, 다른 트레센 학원에서 연락이 도착했습니다.</p>}
         {!passed && destinationVisible && <><p className="event-situation">새로운 무대가 결정되었습니다.</p><p className="admission-destination"><span>입학 제안이 도착했습니다</span><strong>{destination?.displayName ?? career.middleState.schoolName}</strong></p></>}
         {(passed || destinationVisible) && <button className="primary-button event-continue" type="button" onClick={onContinue}><span>중등부로 진학</span><span aria-hidden="true">→</span></button>}
       </section>
@@ -340,7 +340,7 @@ function HighSchoolAdmissionModal({ career, onContinue }) {
         <img className="admission-emblem" src="/assets/trecen.png" alt="중앙 트레센 학원 로고" />
         <h2 id="high-admission-title">중앙 트레센 학원 고등부</h2>
         <p className={`admission-result ${accepted ? 'passed' : 'failed'}`}>{accepted ? '합격' : '불합격'}</p>
-        <p className="event-situation">{accepted ? '중앙 트레센 학원 고등부\n진학이 결정되었습니다.' : '아쉽게도 중앙 트레센 학원 고등부\n최종 선발 명단에 들지 못했습니다.'}</p>
+        <p className="event-situation">{accepted ? '중앙 트레센 학원 고등부 진학이 결정되었습니다.' : '아쉽게도 중앙 트레센 학원 고등부 최종 선발 명단에 들지 못했습니다.'}</p>
         <button className="primary-button event-continue" type="button" onClick={onContinue}><span>{accepted ? '고등부로 진학' : '다른 길을 찾아본다'}</span><span aria-hidden="true">→</span></button>
       </section>
     </div>

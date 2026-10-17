@@ -7,12 +7,23 @@ import { randomChoice } from './eventScheduler.js'
 import { finalizeTurnHistory } from './history.js'
 import { beginTurnHistory } from './history.js'
 import { TURNS } from '../data/turns.js'
+import { getRunningStyle, RUNNING_STYLES } from '../data/runningStyles.js'
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
 const chanceFor = (score, bands) => bands.find(({ below }) => score < below).chance
 
 export function createHighSchoolState() {
-  return { completedEventIds: [], pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, debutStatus: 'PENDING', debutAttempts: 0, achievements: [] }
+  return { completedEventIds: [], pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, pendingRunningStyleDecision: null, runningStyleDecisionResolved: false, debutStatus: 'PENDING', debutAttempts: 0, achievements: [] }
+}
+
+export function getRecommendedRunningStyle(stats) {
+  const scores = {
+    NIGE: stats.speed * .35 + stats.stamina * .25 + stats.intelligence * .25 + stats.power * .10 + stats.grit * .05,
+    SENKO: stats.speed * .30 + stats.power * .25 + stats.intelligence * .25 + stats.stamina * .15 + stats.grit * .05,
+    SASHI: stats.power * .30 + stats.intelligence * .30 + stats.speed * .20 + stats.grit * .15 + stats.stamina * .05,
+    OIKOMI: stats.power * .25 + stats.grit * .25 + stats.intelligence * .30 + stats.speed * .15 + stats.stamina * .05,
+  }
+  return RUNNING_STYLES.reduce((recommended, style) => scores[style.id] > scores[recommended] ? style.id : recommended, 'NIGE')
 }
 
 export function getHighSchoolRaceScore(career, raceId = 'debut') {
@@ -75,7 +86,8 @@ function finalizeHighTurn(career, rng) {
 }
 
 export function startHighSchoolTurn(career, rng = Math.random) {
-  if (career.highSchoolState?.pendingEvent || career.highSchoolState?.pendingRace) return career
+  if (career.highSchoolState?.pendingEvent || career.highSchoolState?.pendingRace || career.highSchoolState?.pendingRunningStyleDecision) return career
+  if (career.turnIndex === 13 && !career.runningStyle) return career
   const conditioned = applyMiddleNaturalCondition(career, rng)
   const { stats, expectedGrowth } = (awaitableApplyBaseGrowth(conditioned, rng))
   const currentTurnHistory = beginTurnHistory(career, TURNS[career.turnIndex])
@@ -113,7 +125,44 @@ export function finishHighSchoolEvent(career, rng = Math.random) {
   const retry = turn === 15 && next.highSchoolState.debutStatus === 'FAILED_ONCE'
   const race = turn === 14 ? createDebutRace(next, false, rng) : retry ? createDebutRace(next, true, rng) : turn === 16 && next.highSchoolState.debutStatus === 'SUCCESS' && next.growthType.id !== 'sprinter' ? createG1Race(next) : null
   next = { ...next, highSchoolState: { ...next.highSchoolState, completedEventIds: [...next.highSchoolState.completedEventIds, event.id], pendingEvent: null, pendingOutcome: null, pendingRace: race } }
+  if (turn === 13 && !next.highSchoolState.runningStyleDecisionResolved) {
+    return { ...next, highSchoolState: { ...next.highSchoolState, pendingRunningStyleDecision: { recommendedStyle: getRecommendedRunningStyle(next.stats), selectedStyle: null } } }
+  }
   return race ? next : finalizeHighTurn(next, rng)
+}
+
+export function selectHighSchoolRunningStyle(career, styleId) {
+  const decision = career.highSchoolState?.pendingRunningStyleDecision
+  if (!decision || decision.selectedStyle || !getRunningStyle(styleId)) return career
+  return { ...career, highSchoolState: { ...career.highSchoolState, pendingRunningStyleDecision: { ...decision, selectedStyle: styleId } } }
+}
+
+export function finishHighSchoolRunningStyle(career, rng = Math.random) {
+  const decision = career.highSchoolState?.pendingRunningStyleDecision
+  const selectedStyle = getRunningStyle(decision?.selectedStyle)
+  const recommendedStyle = getRunningStyle(decision?.recommendedStyle)
+  if (!selectedStyle || !recommendedStyle || career.highSchoolState.runningStyleDecisionResolved) return career
+  const specialHistory = {
+    kind: 'SPECIAL',
+    type: 'SPECIAL',
+    id: 'high_running_style_decision',
+    title: '주행 스타일 결정',
+    turn: 13,
+    periodLabel: '고등부 1학년 1분기',
+    selectedRunningStyle: selectedStyle.id,
+    selectedRunningStyleLabel: selectedStyle.label,
+    recommendedRunningStyle: recommendedStyle.id,
+    recommendedRunningStyleLabel: recommendedStyle.label,
+    resultText: selectedStyle.resultText,
+  }
+  const next = {
+    ...career,
+    runningStyle: selectedStyle.id,
+    history: [specialHistory, ...(career.history ?? [])],
+    logs: [specialHistory, ...(career.logs ?? [])].slice(0, 5),
+    highSchoolState: { ...career.highSchoolState, pendingRunningStyleDecision: null, runningStyleDecisionResolved: true },
+  }
+  return finalizeHighTurn(next, rng)
 }
 
 export function resolveHighSchoolRace(career, choiceId = 'run', rng = Math.random) {

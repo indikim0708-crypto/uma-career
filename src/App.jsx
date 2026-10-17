@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 import { GROWTH_TYPES } from './data/growthTypes.js'
+import { getRunningStyle, RUNNING_STYLES } from './data/runningStyles.js'
 import { MAX_STAT, STATS } from './data/stats.js'
 import { TURNS } from './data/turns.js'
 import { createCareer, chooseGrowthType, rerollCareer } from './game/createCareer.js'
@@ -15,7 +16,7 @@ import TurnProgress from './components/TurnProgress.jsx'
 import AdmissionProgress from './components/AdmissionProgress.jsx'
 import { createTurnProgressPlan } from './game/turnProgress.js'
 import { completeHighSchoolAdmissionSequence, completeNonRacerCareer, enterHighSchool } from './game/highSchoolAdmission.js'
-import { finishHighSchoolEvent, finishHighSchoolRace, resolveHighSchoolRace, selectHighSchoolEventChoice } from './game/highSchoolYear1.js'
+import { finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, resolveHighSchoolRace, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from './game/highSchoolYear1.js'
 
 const SCREENS = {
   HOME: 'HOME',
@@ -155,6 +156,17 @@ const OUTCOME_LABELS = { GREAT_SUCCESS: '대성공!', SUCCESS: '성공', FAILURE
 const RATING_LABELS = { LOWEST: '성장 미비', LOW: '조용한 성장', NORMAL: '꾸준한 성장', HIGH: '성공적인 성장', VERY_HIGH: '폭풍 성장!' }
 
 function GrowthLog({ log, isLatest }) {
+  if (log.kind === 'SPECIAL' && log.id === 'high_running_style_decision') {
+    return (
+      <article className="transfer-log special">
+        <span>SPECIAL EVENT · {log.title}</span>
+        <p>코치 추천: <strong>{log.recommendedRunningStyleLabel}</strong></p>
+        <p>선택: <strong>{log.selectedRunningStyleLabel}</strong></p>
+        <strong>{log.resultText}</strong>
+      </article>
+    )
+  }
+
   if (log.kind === 'SPECIAL' && log.id === 'middle_distance_change') {
     return (
       <article className="transfer-log special">
@@ -363,6 +375,34 @@ function DistanceChangeModal({ career, onSelect }) {
   )
 }
 
+function RunningStyleModal({ decision, onSelect, onContinue }) {
+  const selectedStyle = getRunningStyle(decision.selectedStyle)
+  const recommendedStyle = getRunningStyle(decision.recommendedStyle)
+  return (
+    <div className="event-backdrop" role="presentation">
+      <section className="event-modal running-style-modal" role="dialog" aria-modal="true" aria-labelledby="running-style-title">
+        <p className="event-badge">SPECIAL EVENT</p>
+        {!selectedStyle ? <>
+          <h2 id="running-style-title">주행 스타일 결정</h2>
+          <p className="event-situation">코치가 훈련 기록을 살펴보며 앞으로 실전에서 어떤 방식으로 달릴지 정해보는 것이 좋겠다고 이야기했습니다. 앞에서 레이스를 이끌 수도 있고, 뒤에서 기회를 기다릴 수도 있습니다. 자신에게 가장 잘 맞는 주행 스타일을 선택하세요.</p>
+          <div className="running-style-choices">
+            {RUNNING_STYLES.map((style) => <button type="button" key={style.id} onClick={() => onSelect(style.id)}>
+              <span className="running-style-heading"><strong>{style.label}</strong>{style.id === recommendedStyle?.id && <em>★ 코치 추천</em>}</span>
+              <small>{style.description}</small>
+              <b>{style.abilities}</b>
+            </button>)}
+          </div>
+        </> : <div className="event-result">
+          <p className="outcome">주행 스타일 선택</p>
+          <h2 id="running-style-title">{selectedStyle.label}</h2>
+          <p className="outcome-text">{selectedStyle.resultText}</p>
+          <button className="primary-button event-continue" type="button" onClick={onContinue}><span>결정한다</span><span aria-hidden="true">→</span></button>
+        </div>}
+      </section>
+    </div>
+  )
+}
+
 function LegendEventModal({ event, outcome, onSelect, onContinue }) {
   return (
     <div className="event-backdrop" role="presentation">
@@ -398,7 +438,7 @@ function LegendEventModal({ event, outcome, onSelect, onContinue }) {
   )
 }
 
-function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, onProgressEventTrigger, onProgressLegendTrigger, onProgressComplete, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onAdmissionSequenceComplete, onHighAdmissionSequenceComplete, onHighAdmissionContinue, onDistanceChange, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue, onHighEventChoice, onHighEventContinue, onRaceSelect, onRaceContinue }) {
+function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, onProgressEventTrigger, onProgressLegendTrigger, onProgressComplete, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onAdmissionSequenceComplete, onHighAdmissionSequenceComplete, onHighAdmissionContinue, onDistanceChange, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue, onHighEventChoice, onHighEventContinue, onRunningStyleSelect, onRunningStyleContinue, onRaceSelect, onRaceContinue }) {
   const currentTurn = TURNS[career.turnIndex]
   const middleSchool = currentTurn.stage === '중등부' ? getMiddleSchoolById(career.middleState.schoolId) : null
   const summaryLocation = middleSchool?.location ?? career.region.name
@@ -409,8 +449,9 @@ function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, o
   const middleEventOpen = Boolean(turnProgress?.eventTriggered && !turnProgress.eventResolved && career.middleState?.pendingEvent)
   const legendOpen = Boolean(turnProgress?.legendTriggered && !turnProgress.legendResolved && career.middleState?.pendingLegend)
   const highEventOpen = Boolean(turnProgress?.eventTriggered && !turnProgress.eventResolved && career.highSchoolState?.pendingEvent)
+  const runningStyleOpen = Boolean(turnProgress?.eventResolved && career.highSchoolState?.pendingRunningStyleDecision)
   const raceOpen = Boolean(turnProgress?.legendTriggered && !turnProgress.legendResolved && career.highSchoolState?.pendingRace)
-  const progressPaused = elementaryEventOpen || middleEventOpen || legendOpen || highEventOpen || raceOpen
+  const progressPaused = elementaryEventOpen || middleEventOpen || legendOpen || highEventOpen || runningStyleOpen || raceOpen
 
   return (
     <main className="game-page page-shell">
@@ -424,6 +465,7 @@ function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, o
           <h1>{currentTurn.label}</h1>
           <p className="summary-line">{summaryLocation} · {currentTurn.stage === '초등부' ? career.school.name : currentTurn.stage === '중등부' ? summarySchoolName : `${currentTurn.stage} 과정`}</p>
           <p className="summary-line">{career.growthType.name} · 컨디션 <strong className={`condition condition-${career.condition}`}>{career.condition}</strong></p>
+          {career.runningStyle && <p className="summary-line">주행 스타일 · {getRunningStyle(career.runningStyle)?.label}</p>}
           {career.notice && <div className="milestone"><span>◆</span><p>{career.notice}</p></div>}
         </section>
 
@@ -451,6 +493,7 @@ function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, o
       {middleEventOpen && <EventModal event={career.middleState.pendingEvent} outcome={career.middleState.pendingOutcome} onSelect={onMiddleEventChoice} onContinue={onMiddleEventContinue} />}
       {legendOpen && <LegendEventModal event={career.middleState.pendingLegend} outcome={career.middleState.pendingLegendOutcome} onSelect={onLegendSelect} onContinue={onLegendContinue} />}
       {highEventOpen && <EventModal event={career.highSchoolState.pendingEvent} outcome={career.highSchoolState.pendingOutcome} onSelect={onHighEventChoice} onContinue={onHighEventContinue} />}
+      {runningStyleOpen && <RunningStyleModal decision={career.highSchoolState.pendingRunningStyleDecision} onSelect={onRunningStyleSelect} onContinue={onRunningStyleContinue} />}
       {raceOpen && <RaceModal race={career.highSchoolState.pendingRace} result={career.highSchoolState.pendingRaceResult} onSelect={onRaceSelect} onContinue={onRaceContinue} />}
     </main>
   )
@@ -621,6 +664,8 @@ function App() {
     setCareer((current) => finishHighSchoolEvent(current))
     setTurnProgress((current) => current ? { ...current, eventResolved: true } : current)
   }
+  const handleRunningStyleSelect = (styleId) => setCareer((current) => selectHighSchoolRunningStyle(current, styleId))
+  const handleRunningStyleContinue = () => setCareer((current) => finishHighSchoolRunningStyle(current))
   const handleRaceSelect = (choiceId) => setCareer((current) => resolveHighSchoolRace(current, choiceId))
   const handleRaceContinue = () => {
     const next = finishHighSchoolRace(career)
@@ -637,7 +682,7 @@ function App() {
   if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onRandomName={randomizeName} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
   if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
   if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
-  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onAdmissionSequenceComplete={handleAdmissionSequenceComplete} onHighAdmissionSequenceComplete={handleHighAdmissionSequenceComplete} onHighAdmissionContinue={handleHighAdmissionContinue} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} onHighEventChoice={handleHighEventChoice} onHighEventContinue={handleHighEventContinue} onRaceSelect={handleRaceSelect} onRaceContinue={handleRaceContinue} />
+  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onAdmissionSequenceComplete={handleAdmissionSequenceComplete} onHighAdmissionSequenceComplete={handleHighAdmissionSequenceComplete} onHighAdmissionContinue={handleHighAdmissionContinue} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} onHighEventChoice={handleHighEventChoice} onHighEventContinue={handleHighEventContinue} onRunningStyleSelect={handleRunningStyleSelect} onRunningStyleContinue={handleRunningStyleContinue} onRaceSelect={handleRaceSelect} onRaceContinue={handleRaceContinue} />
   if (screen === 'ANOTHER_PATH') return <AnotherPath onComplete={() => setScreen(SCREENS.RESULT)} />
   if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
   return <Intro onStart={startNewCareer} />

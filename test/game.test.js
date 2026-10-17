@@ -27,7 +27,7 @@ import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDuratio
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
 import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, calculateHighSchoolSpecialtyScore, calculateHighSchoolSpecialtyStat, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
-import { finishHighSchoolEvent, finishHighSchoolRace, resolveHighSchoolRace, selectHighSchoolEventChoice } from '../src/game/highSchoolYear1.js'
+import { createHighSchoolState, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -69,6 +69,10 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
     if (career.highSchoolState?.pendingEvent) {
       career = selectHighSchoolEventChoice(career, career.highSchoolState.pendingEvent.choices[0].id, rng)
       career = finishHighSchoolEvent(career, rng)
+    }
+    if (career.highSchoolState?.pendingRunningStyleDecision) {
+      career = selectHighSchoolRunningStyle(career, 'SENKO')
+      career = finishHighSchoolRunningStyle(career, rng)
     }
     if (career.highSchoolState?.pendingRace) {
       career = resolveHighSchoolRace(career, career.highSchoolState.pendingRace.choices[0].id, rng)
@@ -714,6 +718,45 @@ test('high school specialty score uses core-stat averages and type-specific norm
   }
   assert.equal(calculateHighSchoolSpecialtyScore(endingCareer({ speed: 0, stamina: 0, power: 0, grit: 0, intelligence: 0 }, 'router')), 0)
   assert.equal(calculateHighSchoolSpecialtyScore(endingCareer({ speed: 120, stamina: 120, power: 120, grit: 120, intelligence: 120 }, 'stayer')), 35)
+})
+
+test('turn 13 resolves one running-style special after its regular event without changing growth values', () => {
+  const career = {
+    ...endingCareer({ speed: 60, stamina: 50, power: 58, grit: 46, intelligence: 55 }, 'miler'),
+    turnIndex: 12,
+    potential: 50,
+    stability: 50,
+    condition: '보통',
+    history: [],
+    logs: [],
+    recentProgressMessageIds: [],
+    runningStyle: null,
+    highSchoolState: createHighSchoolState(),
+  }
+  const started = advanceCareer(career, () => 0)
+  assert.ok(started.highSchoolState.pendingEvent)
+  const withChoice = selectHighSchoolEventChoice(started, started.highSchoolState.pendingEvent.choices[0].id, () => 0)
+  const afterEvent = finishHighSchoolEvent(withChoice, () => 0)
+  const decision = afterEvent.highSchoolState.pendingRunningStyleDecision
+  assert.ok(decision)
+  assert.equal(afterEvent.highSchoolState.completedEventIds.length, 1)
+  assert.equal(afterEvent.runningStyle, null)
+  assert.equal(getRecommendedRunningStyle({ speed: 50, stamina: 50, power: 50, grit: 50, intelligence: 50 }), 'NIGE')
+
+  const selected = selectHighSchoolRunningStyle(afterEvent, 'OIKOMI')
+  assert.equal(selected.highSchoolState.pendingRunningStyleDecision.selectedStyle, 'OIKOMI')
+  assert.deepEqual(selected.stats, afterEvent.stats)
+  assert.equal(selected.condition, afterEvent.condition)
+  assert.equal(selected.growthType.id, 'miler')
+  const resolved = finishHighSchoolRunningStyle(selected, () => 0)
+  assert.equal(resolved.runningStyle, 'OIKOMI')
+  assert.equal(resolved.highSchoolState.runningStyleDecisionResolved, true)
+  assert.equal(resolved.turnIndex, 13)
+  assert.equal(resolved.history[1].id, 'high_running_style_decision')
+  assert.equal(resolved.history[1].selectedRunningStyle, 'OIKOMI')
+  assert.equal(resolved.history[1].recommendedRunningStyle, decision.recommendedStyle)
+  assert.strictEqual(finishHighSchoolRunningStyle(resolved, () => 0), resolved)
+  assert.ok(advanceCareer(resolved, () => 0).highSchoolState.pendingEvent)
 })
 
 test('non-racer ending resolver is deterministic, history-aware, and covers specialist and fallback paths', () => {

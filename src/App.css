@@ -234,6 +234,14 @@ button { border: 0; }
 .event-choices button:active { border-color: var(--gold); background: #302938; }
 .event-choices button span { color: var(--gold); margin-left: 9px; }
 .distance-change-modal .event-choices .keep-current { border-color: rgba(232, 202, 105, 0.72); background: rgba(232, 202, 105, 0.08); }
+.running-style-choices { display: grid; gap: 8px; }
+.running-style-choices button { background: rgba(30, 27, 35, 0.94); border: 1px solid var(--line); color: var(--text); cursor: pointer; display: grid; gap: 5px; min-height: 78px; padding: 10px 12px; text-align: left; width: 100%; }
+.running-style-heading { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
+.running-style-heading strong { font-size: 15px; }
+.running-style-heading em { color: var(--gold); font-size: 10px; font-style: normal; font-weight: 900; }
+.running-style-choices small { color: #c8c0cd; font-size: 11px; line-height: 1.45; }
+.running-style-choices b { color: var(--violet-soft); font-size: 10px; }
+.running-style-choices button:active { background: #302938; border-color: var(--gold); }
 .outcome { color: var(--violet-soft); font-size: 19px; font-weight: 900; margin: 9px 0 8px; }
 .outcome-GREAT_SUCCESS { color: var(--gold); }
 .outcome-FAILURE { color: #ef8990; }

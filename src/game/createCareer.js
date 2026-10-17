@@ -54,6 +54,7 @@ export function createCareer(names = {}, rng = Math.random) {
     middleState: null,
     highSchoolAdmission: null,
     highSchoolState: null,
+    highSchoolLegend: null,
     highYear2: null,
     highYear3: null,
     runningStyle: null,

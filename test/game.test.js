@@ -27,13 +27,15 @@ import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDuratio
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
 import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, calculateHighSchoolSpecialtyScore, calculateHighSchoolSpecialtyStat, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
-import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, createHighYear3State, dismissHighYear3Achievement, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, resolveHighYear3Special, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
+import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, createHighYear3State, dismissHighYear3Achievement, finishHighSchoolEvent, finishHighSchoolLegend, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, resolveHighYear3Special, selectHighSchoolEventChoice, selectHighSchoolLegendChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
 import { createRacePlan } from '../src/game/racePlan.js'
 import { calculateDistanceScore, calculatePositionKeepScore, calculateStaminaPenalty, calculateStyleFitScore, getPositionKeepRange, getRaceFieldStrength, simulateRace } from '../src/game/raceSimulation.js'
 import { HIGH_SCHOOL_YEAR2_EVENTS } from '../src/data/highSchoolYear2Events.js'
 import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../src/data/highSchoolYear2Races.js'
 import { HIGH_SCHOOL_YEAR3_EVENTS } from '../src/data/highSchoolYear3Events.js'
 import { HIGH_YEAR3_RACES } from '../src/data/highSchoolYear3Races.js'
+import { HIGH_SCHOOL_LEGEND_EVENTS } from '../src/data/highSchoolLegendEvents.js'
+import { createHighSchoolLegendState, ensureHighSchoolLegendPlan, getHighLegendWeights, selectHighSchoolLegend } from '../src/game/highSchoolLegend.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -56,7 +58,8 @@ function finishHighYear2RegularEvent(career, rng = () => 0.5) {
   let next = advanceCareer(career, rng)
   assert.ok(next.highSchoolState.pendingEvent)
   next = selectHighSchoolEventChoice(next, next.highSchoolState.pendingEvent.choices[0].id, rng)
-  return finishHighSchoolEvent(next, rng)
+  next = finishHighSchoolEvent(next, rng)
+  return next.highSchoolLegend?.pendingLegend ? finishHighSchoolLegend(selectHighSchoolLegendChoice(next), rng) : next
 }
 
 function finishPendingHighRace(career, rng = () => 0) {
@@ -76,6 +79,7 @@ function runSeniorScenario(growthTypeId, decisions = {}) {
     history: [],
     logs: [],
     highSchoolState: createHighSchoolState(),
+    highSchoolLegend: createHighSchoolLegendState(),
     highYear2: createHighYear2State(),
     highYear3: createHighYear3State(),
   }
@@ -85,8 +89,10 @@ function runSeniorScenario(growthTypeId, decisions = {}) {
       career = selectHighSchoolEventChoice(career, career.highSchoolState.pendingEvent.choices[0].id, rng)
       career = finishHighSchoolEvent(career, rng)
     }
-    while (career.highYear3?.pendingSpecial || career.highSchoolState.pendingRace || career.highYear3?.pendingAchievements.length) {
-      if (career.highYear3.pendingSpecial) {
+    while (career.highSchoolLegend?.pendingLegend || career.highYear3?.pendingSpecial || career.highSchoolState.pendingRace || career.highYear3?.pendingAchievements.length) {
+      if (career.highSchoolLegend?.pendingLegend) {
+        career = finishHighSchoolLegend(selectHighSchoolLegendChoice(career), rng)
+      } else if (career.highYear3.pendingSpecial) {
         const pending = career.highYear3.pendingSpecial
         career = resolveHighYear3Special(career, decisions[pending.id] ?? pending.choices[0].id, rng)
       } else if (career.highSchoolState.pendingRace) {
@@ -143,6 +149,10 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
     if (career.highSchoolState?.pendingRunningStyleDecision) {
       career = selectHighSchoolRunningStyle(career, 'SENKO')
       career = finishHighSchoolRunningStyle(career, rng)
+    }
+    if (career.highSchoolLegend?.pendingLegend) {
+      career = selectHighSchoolLegendChoice(career)
+      career = finishHighSchoolLegend(career, rng)
     }
     if (career.highYear2?.pendingSpecial) {
       career = resolveHighYear2Special(career, career.highYear2.pendingSpecial.choices[0].id, rng)
@@ -1393,4 +1403,96 @@ test('senior router and stayer scenarios preserve sequential choices and unlock 
   assert.equal(stayer.highYear3.raceResults.osaka_hai, undefined)
   assert.ok(stayer.highYear3.achievements.some(({ id }) => id === 'TENNO_DOUBLE'))
   assert.ok(stayer.highYear3.achievements.some(({ id }) => id === 'GRAND_PRIX_DOUBLE'))
+})
+
+test('high school legend catalog has ten fixed one-choice rewards with no condition changes', () => {
+  assert.equal(HIGH_SCHOOL_LEGEND_EVENTS.length, 10)
+  assert.equal(new Set(HIGH_SCHOOL_LEGEND_EVENTS.map(({ legendId }) => legendId)).size, 10)
+  assert.ok(HIGH_SCHOOL_LEGEND_EVENTS.every(({ type, choices, statChanges }) => type === 'HIGH_LEGEND' && choices.length === 1 && Object.values(statChanges).every((amount) => amount > 0)))
+  const rudolf = HIGH_SCHOOL_LEGEND_EVENTS.find(({ legendId }) => legendId === 'SYMBOLI_RUDOLF')
+  assert.deepEqual(rudolf.statChanges, { speed: 10, stamina: 10, intelligence: 10 })
+})
+
+test('high school legend weights follow growth, style, route, achievements, and race results', () => {
+  const base = {
+    ...chooseGrowthType(createCareer({ lastName: '전설', firstName: '가중치' }, () => 0.5), 'stayer'),
+    runningStyle: 'OIKOMI',
+    turnIndex: 18,
+    middleState: { completedLegendIds: [] },
+    highSchoolLegend: createHighSchoolLegendState(),
+    highYear2: { ...createHighYear2State(), route: 'LONG' },
+    highYear3: createHighYear3State(),
+  }
+  const turn16 = getHighLegendWeights(base, 16)
+  const turn19 = getHighLegendWeights(base, 19)
+  assert.equal(turn16.MEJIRO_MCQUEEN, 28)
+  assert.equal(turn16.ORFEVRE, 36)
+  assert.equal(turn19.MEJIRO_MCQUEEN, 46)
+  assert.equal(turn19.SUPER_CREEK, 40)
+  assert.equal(turn19.ORFEVRE, 44)
+
+  const accomplished = { ...base, highYear2: { ...base.highYear2, achievements: [{ id: 'CLASSIC_TRIPLE_CROWN' }] }, highYear3: { ...base.highYear3, raceResults: { tenno_sho_spring: { won: true }, takarazuka_kinen: { won: true } } } }
+  const turn23 = getHighLegendWeights(accomplished, 23)
+  assert.equal(turn23.GENTILDONNA, 30)
+  assert.equal(turn23.ORFEVRE, 48)
+  assert.equal(turn23.MEJIRO_MCQUEEN, 40)
+})
+
+test('high school legend selection excludes middle and high school repeats and keeps Rudolf near five percent', () => {
+  const career = {
+    ...chooseGrowthType(createCareer({ lastName: '전설', firstName: '추첨' }, () => 0.5), 'router'),
+    runningStyle: 'SASHI',
+    middleState: { completedLegendIds: ['legend_oguri'] },
+    highSchoolLegend: { ...createHighSchoolLegendState(), completedLegendIds: ['TAIKI_SHUTTLE', 'ALMOND_EYE'] },
+    highYear2: { ...createHighYear2State(), route: 'CLASSIC_TRIPLE' },
+    highYear3: createHighYear3State(),
+  }
+  const weights = getHighLegendWeights(career, 19)
+  assert.equal(weights.OGURI_CAP, undefined)
+  assert.equal(weights.TAIKI_SHUTTLE, undefined)
+  assert.equal(weights.ALMOND_EYE, undefined)
+
+  const rng = seededRandom(9012)
+  const counts = {}
+  for (let index = 0; index < 10_000; index += 1) {
+    const id = selectHighSchoolLegend({ ...career, middleState: { completedLegendIds: [] }, highSchoolLegend: createHighSchoolLegendState() }, 16, rng).legendId
+    counts[id] = (counts[id] ?? 0) + 1
+  }
+  assert.ok(Math.abs(counts.SYMBOLI_RUDOLF / 10_000 - 0.05) < 0.012)
+  assert.ok(counts.GENTILDONNA > counts.SUPER_CREEK)
+  assert.ok(counts.ALMOND_EYE > counts.SUPER_CREEK)
+})
+
+test('turns 16, 19, and 23 award exactly one high school legend before later race content', () => {
+  const career = finishCareer('router', 771)
+  assert.equal(career.highSchoolLegend.completedLegendIds.length, 3)
+  assert.equal(new Set(career.highSchoolLegend.completedLegendIds).size, 3)
+  for (const turn of [16, 19, 23]) {
+    const log = career.history.find((entry) => entry.turn === turn)
+    assert.equal(log.legendEvent.type, 'LEGEND')
+    assert.equal(log.legendEvent.conditionDelta, 0)
+    assert.ok(Object.values(log.legendEvent.statChanges).every((amount) => amount > 0))
+  }
+})
+
+test('a high school legend plan is rolled once and rapid selection cannot duplicate its reward', () => {
+  const base = {
+    ...chooseGrowthType(createCareer({ lastName: '전설', firstName: '고정' }, () => 0.5), 'router'),
+    turnIndex: 15,
+    runningStyle: 'NIGE',
+    middleState: { completedLegendIds: [] },
+    highSchoolLegend: createHighSchoolLegendState(),
+  }
+  const planned = ensureHighSchoolLegendPlan(base, 16, () => 0)
+  const rerendered = ensureHighSchoolLegendPlan(planned, 16, () => 0.99)
+  assert.strictEqual(rerendered, planned)
+  assert.equal(planned.highSchoolLegend.plans[16].legendId, 'SYMBOLI_RUDOLF')
+
+  const pending = { ...planned, stats: { speed: 115, stamina: 115, power: 50, grit: 50, intelligence: 115 }, currentTurnHistory: { statsBefore: { speed: 115, stamina: 115, power: 50, grit: 50, intelligence: 115 }, statsAfterBase: { speed: 115, stamina: 115, power: 50, grit: 50, intelligence: 115 }, statsAfterEvent: { speed: 115, stamina: 115, power: 50, grit: 50, intelligence: 115 }, expectedGrowth: 1, periodLabel: '고등부 1학년 4분기' }, highSchoolState: { ...createHighSchoolState(), debutStatus: 'SUCCESS' }, highSchoolLegend: { ...planned.highSchoolLegend, pendingLegend: HIGH_SCHOOL_LEGEND_EVENTS[0] } }
+  const selected = selectHighSchoolLegendChoice(pending)
+  assert.strictEqual(selectHighSchoolLegendChoice(selected), selected)
+  const resolved = finishHighSchoolLegend(selected, () => 0.5)
+  assert.deepEqual({ speed: resolved.stats.speed, stamina: resolved.stats.stamina, intelligence: resolved.stats.intelligence }, { speed: 120, stamina: 120, intelligence: 120 })
+  assert.strictEqual(finishHighSchoolLegend(resolved, () => 0), resolved)
+  assert.equal(resolved.highSchoolLegend.completedLegendIds.length, 1)
 })

@@ -12,6 +12,7 @@ import { HIGH_SCHOOL_YEAR2_EVENTS } from '../data/highSchoolYear2Events.js'
 import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../data/highSchoolYear2Races.js'
 import { HIGH_YEAR3_RACES } from '../data/highSchoolYear3Races.js'
 import { pickHighYear3Event } from '../data/highSchoolYear3Events.js'
+import { ensureHighSchoolLegendPlan, getHighSchoolLegendDue } from './highSchoolLegend.js'
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
 
@@ -139,7 +140,7 @@ function finalizeHighTurn(career, rng) {
 }
 
 export function startHighSchoolTurn(career, rng = Math.random) {
-  if (career.highSchoolState?.pendingEvent || career.highSchoolState?.pendingRace || career.highSchoolState?.pendingRunningStyleDecision || career.highYear2?.pendingSpecial || career.highYear3?.pendingSpecial) return career
+  if (career.highSchoolState?.pendingEvent || career.highSchoolState?.pendingRace || career.highSchoolState?.pendingRunningStyleDecision || career.highSchoolLegend?.pendingLegend || career.highYear2?.pendingSpecial || career.highYear3?.pendingSpecial) return career
   if (career.turnIndex === 13 && !career.runningStyle) return career
   const withYear2 = career.turnIndex >= 16 && !career.highYear2 ? { ...career, highYear2: createHighYear2State() } : career
   const initialized = career.turnIndex >= 20 && !withYear2.highYear3 ? { ...withYear2, highYear3: createHighYear3State() } : withYear2
@@ -152,7 +153,8 @@ export function startHighSchoolTurn(career, rng = Math.random) {
     ? pickHighYear3Event(conditioned, career.turnIndex + 1, rng)
     : randomChoice((career.turnIndex >= 16 ? HIGH_SCHOOL_YEAR2_EVENTS : HIGH_SCHOOL_YEAR1_EVENTS).filter(({ id }) => !conditioned.highSchoolState.completedEventIds.includes(id)), rng)
   const highYear3 = initialized.highYear3 ? { ...initialized.highYear3, racesCompletedThisTurn: 0, penaltiesAppliedThisTurn: 0, actionQueue: [], pendingSpecial: null, pendingAchievements: [] } : initialized.highYear3
-  return { ...conditioned, highYear3, stats, currentTurnHistory: { ...currentTurnHistory, statsAfterBase: { ...stats }, expectedGrowth }, highSchoolState: { ...conditioned.highSchoolState, pendingEvent: event, pendingOutcome: null } }
+  const prepared = { ...conditioned, highYear3, stats, currentTurnHistory: { ...currentTurnHistory, statsAfterBase: { ...stats }, expectedGrowth }, highSchoolState: { ...conditioned.highSchoolState, pendingEvent: event, pendingOutcome: null } }
+  return ensureHighSchoolLegendPlan(prepared, career.turnIndex + 1, rng)
 }
 
 // Avoid a circular import while sharing the existing base-growth rule.
@@ -249,12 +251,46 @@ export function finishHighSchoolEvent(career, rng = Math.random) {
   const retry = turn === 15 && next.highSchoolState.debutStatus === 'FAILED_ONCE'
   const race = turn === 14 ? createDebutRace(next, false, rng) : retry ? createDebutRace(next, true, rng) : turn === 16 && next.highSchoolState.debutStatus === 'SUCCESS' && next.growthType.id !== 'sprinter' ? createG1Race(next) : null
   next = { ...next, highSchoolState: { ...next.highSchoolState, completedEventIds: [...next.highSchoolState.completedEventIds, event.id], pendingEvent: null, pendingOutcome: null, pendingRace: race } }
+  const highLegend = getHighSchoolLegendDue(next, turn)
+  if (highLegend) return { ...next, highSchoolState: { ...next.highSchoolState, pendingRace: null }, highSchoolLegend: { ...next.highSchoolLegend, pendingLegend: highLegend, pendingOutcome: null } }
   if (turn >= 21 && turn <= 24) return beginYear3PostEvent(next, turn, rng)
   if (turn >= 17 && turn <= 20) return beginYear2PostEvent(next, turn, rng)
   if (turn === 13 && !next.highSchoolState.runningStyleDecisionResolved) {
     return { ...next, highSchoolState: { ...next.highSchoolState, pendingRunningStyleDecision: { recommendedStyle: getRecommendedRunningStyle(next.stats), selectedStyle: null } } }
   }
   return race ? next : finalizeHighTurn(next, rng)
+}
+
+export function selectHighSchoolLegendChoice(career) {
+  const event = career.highSchoolLegend?.pendingLegend
+  if (!event || career.highSchoolLegend.pendingOutcome) return career
+  return { ...career, highSchoolLegend: { ...career.highSchoolLegend, pendingOutcome: { choiceId: event.choices[0].id, statChanges: { ...event.statChanges } } } }
+}
+
+export function finishHighSchoolLegend(career, rng = Math.random) {
+  const event = career.highSchoolLegend?.pendingLegend
+  const outcome = career.highSchoolLegend?.pendingOutcome
+  if (!event || !outcome) return career
+  let next = applyChanges(career, outcome.statChanges, 0)
+  next.currentTurnHistory = structuredClone(career.currentTurnHistory)
+  next.currentTurnHistory.legendEvent = {
+    type: 'LEGEND', eventId: event.id, legendId: event.legendId, legendName: event.characterName, characterName: event.characterName, title: event.title, portrait: event.portrait, quote: event.quote, selectedChoiceText: event.choices[0].text, outcomeText: '전설의 조언을 마음에 새겼습니다.', statChanges: { ...outcome.statChanges }, conditionDelta: 0,
+  }
+  const turn = next.turnIndex + 1
+  next.highSchoolLegend = {
+    ...next.highSchoolLegend,
+    completedLegendIds: [...next.highSchoolLegend.completedLegendIds, event.legendId],
+    plans: { ...next.highSchoolLegend.plans, [turn]: { ...next.highSchoolLegend.plans[turn], resolved: true } },
+    pendingLegend: null,
+    pendingOutcome: null,
+  }
+  if (turn === 16) {
+    const race = next.highSchoolState.debutStatus === 'SUCCESS' && next.growthType.id !== 'sprinter' ? createG1Race(next) : null
+    return race ? { ...next, highSchoolState: { ...next.highSchoolState, pendingRace: race } } : finalizeHighTurn(next, rng)
+  }
+  if (turn === 19) return finalizeHighTurn(next, rng)
+  if (turn === 23) return beginYear3PostEvent(next, turn, rng)
+  return finalizeHighTurn(next, rng)
 }
 
 export function resolveHighYear2Special(career, choiceId, rng = Math.random) {

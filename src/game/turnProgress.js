@@ -78,7 +78,8 @@ function hasLegendThisTurn(career, turnNumber) {
 }
 
 function hasHighSpecialThisTurn(career, turnNumber) {
-  if (turnNumber >= 21 && turnNumber <= 24) return turnNumber !== 23 || career.growthType.id === 'sprinter'
+  if ([16, 19, 23].includes(turnNumber)) return true
+  if (turnNumber >= 21 && turnNumber <= 24) return true
   if (turnNumber === 17) return true
   if (turnNumber === 18) return career.highYear2?.route !== 'SPRINT'
   if (turnNumber === 20) return true

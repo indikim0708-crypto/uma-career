@@ -12,6 +12,7 @@ import { applyMiddleNaturalCondition, chooseMiddleEvent } from './middleEvents.j
 import { beginMiddleDistanceChange, isMiddleDistanceChangeDue } from './middleDistanceChange.js'
 import { createAdmissionPlan } from './admissionSequence.js'
 import { startHighSchoolTurn } from './highSchoolYear1.js'
+import { prepareTeamTransferCheckpoint } from './highSchoolTeam.js'
 
 export function getPotentialMultiplier(potential) {
   if (potential < 20) return 0.9
@@ -159,7 +160,11 @@ export function advanceCareer(career, rng = Math.random) {
     }
   }
 
-  if (TURNS[career.turnIndex].stage === '고등부' && career.turnIndex <= 23) return startHighSchoolTurn(career, rng)
+  if (TURNS[career.turnIndex].stage === '고등부' && career.turnIndex <= 23) {
+    const prepared = prepareTeamTransferCheckpoint(career, rng)
+    if (prepared.teamState?.currentTransferOffer) return prepared
+    return startHighSchoolTurn(prepared, rng)
+  }
 
   const turn = TURNS[career.turnIndex]
   const currentTurnHistory = beginTurnHistory(career, turn)

@@ -58,6 +58,7 @@ export function createCareer(names = {}, rng = Math.random) {
     highYear2: null,
     highYear3: null,
     runningStyle: null,
+    teamState: null,
     nonRacerEnding: null,
     notice: '',
     complete: false,

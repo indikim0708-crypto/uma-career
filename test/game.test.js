@@ -27,7 +27,7 @@ import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDuratio
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
 import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, calculateHighSchoolSpecialtyScore, calculateHighSchoolSpecialtyStat, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
-import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, createHighYear3State, dismissHighYear3Achievement, finishHighSchoolEvent, finishHighSchoolLegend, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, resolveHighYear3Special, selectHighSchoolEventChoice, selectHighSchoolLegendChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
+import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, createHighYear3State, dismissHighYear3Achievement, finishHighSchoolEvent, finishHighSchoolLegend, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, resolveHighYear3Special, resolveInitialTeamSelection, selectHighSchoolEventChoice, selectHighSchoolLegendChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
 import { createRacePlan } from '../src/game/racePlan.js'
 import { calculateDistanceScore, calculatePositionKeepScore, calculateStaminaPenalty, calculateStyleFitScore, getPositionKeepRange, getRaceFieldStrength, simulateRace } from '../src/game/raceSimulation.js'
 import { HIGH_SCHOOL_YEAR2_EVENTS } from '../src/data/highSchoolYear2Events.js'
@@ -36,6 +36,8 @@ import { HIGH_SCHOOL_YEAR3_EVENTS } from '../src/data/highSchoolYear3Events.js'
 import { HIGH_YEAR3_RACES } from '../src/data/highSchoolYear3Races.js'
 import { HIGH_SCHOOL_LEGEND_EVENTS } from '../src/data/highSchoolLegendEvents.js'
 import { createHighSchoolLegendState, ensureHighSchoolLegendPlan, getHighLegendWeights, selectHighSchoolLegend } from '../src/game/highSchoolLegend.js'
+import { applyTeamTurnPlan, calculateTeamReputation, createInitialTeamOffers, createTeamState, createTeamTurnPlan, getEligibleTransferTeams, getTeamTrainingPoints, prepareTeamTransferCheckpoint, resolveInitialTeamOffer, resolveTeamTransferOffer } from '../src/game/highSchoolTeam.js'
+import { INITIAL_TEAM_IDS, TEAM_BY_ID } from '../src/data/highSchoolTeams.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -50,6 +52,7 @@ function makeHighYear2Career(growthTypeId = 'router') {
     logs: [],
     recentProgressMessageIds: [],
     highSchoolState: createHighSchoolState(),
+    teamState: { ...createTeamState(), initialOffersResolved: true, transferCheckpointsResolved: { beforeTurn17: true, beforeTurn21: true, beforeTurn24: true } },
     highYear2: null,
   }
 }
@@ -80,11 +83,13 @@ function runSeniorScenario(growthTypeId, decisions = {}) {
     logs: [],
     highSchoolState: createHighSchoolState(),
     highSchoolLegend: createHighSchoolLegendState(),
+    teamState: { ...createTeamState(), initialOffersResolved: true, transferCheckpointsResolved: { beforeTurn17: true, beforeTurn21: true, beforeTurn24: true } },
     highYear2: createHighYear2State(),
     highYear3: createHighYear3State(),
   }
   while (!career.complete) {
     career = advanceCareer(career, rng)
+    if (career.teamState?.currentTransferOffer) career = resolveTeamTransferOffer(career, false)
     if (career.highSchoolState.pendingEvent) {
       career = selectHighSchoolEventChoice(career, career.highSchoolState.pendingEvent.choices[0].id, rng)
       career = finishHighSchoolEvent(career, rng)
@@ -117,10 +122,12 @@ function seededRandom(seed) {
 }
 
 function finishCareer(typeId, seed = 1, overrides = {}) {
+  const { declineInitialTeam = false, ...careerOverrides } = overrides
   const rng = seededRandom(seed)
-  let career = chooseGrowthType({ ...createCareer(rng), ...overrides }, typeId)
+  let career = chooseGrowthType({ ...createCareer(rng), ...careerOverrides }, typeId)
   while (!career.complete) {
     career = advanceCareer(career, rng)
+    if (career.teamState?.currentTransferOffer) career = resolveTeamTransferOffer(career, false)
     if (career.transferState?.offered && !career.transferState.resolved) {
       career = resolveTransferAndStartElementaryTurn(career, false, rng)
     }
@@ -150,6 +157,7 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
       career = selectHighSchoolRunningStyle(career, 'SENKO')
       career = finishHighSchoolRunningStyle(career, rng)
     }
+    if (career.teamState?.initialOfferTeamIds.length && !career.teamState.initialOffersResolved) career = resolveInitialTeamSelection(career, declineInitialTeam ? null : career.teamState.initialOfferTeamIds[0], rng)
     if (career.highSchoolLegend?.pendingLegend) {
       career = selectHighSchoolLegendChoice(career)
       career = finishHighSchoolLegend(career, rng)
@@ -275,8 +283,8 @@ test('each growth type completes a career while every stat grows', () => {
 })
 
 test('higher potential creates faster growth with identical rolls', () => {
-  const low = finishCareer('router', 77, { potential: 10 })
-  const high = finishCareer('router', 77, { potential: 98 })
+  const low = finishCareer('router', 77, { potential: 10, declineInitialTeam: true })
+  const high = finishCareer('router', 77, { potential: 98, declineInitialTeam: true })
   const total = (career) => STATS.reduce((sum, { id }) => sum + career.stats[id], 0)
   assert.ok(total(high) > total(low))
 })
@@ -820,6 +828,7 @@ test('turn 13 resolves one running-style special after its regular event without
     recentProgressMessageIds: [],
     runningStyle: null,
     highSchoolState: createHighSchoolState(),
+    teamState: createTeamState(),
   }
   const started = advanceCareer(career, () => 0)
   assert.ok(started.highSchoolState.pendingEvent)
@@ -836,14 +845,19 @@ test('turn 13 resolves one running-style special after its regular event without
   assert.deepEqual(selected.stats, afterEvent.stats)
   assert.equal(selected.condition, afterEvent.condition)
   assert.equal(selected.growthType.id, 'miler')
-  const resolved = finishHighSchoolRunningStyle(selected, () => 0)
-  assert.equal(resolved.runningStyle, 'OIKOMI')
-  assert.equal(resolved.highSchoolState.runningStyleDecisionResolved, true)
+  const scouted = finishHighSchoolRunningStyle(selected, () => 0)
+  assert.equal(scouted.runningStyle, 'OIKOMI')
+  assert.equal(scouted.highSchoolState.runningStyleDecisionResolved, true)
+  assert.equal(scouted.turnIndex, 12)
+  assert.equal(scouted.teamState.initialOfferTeamIds.length, 2)
+  const resolved = resolveInitialTeamSelection(scouted, scouted.teamState.initialOfferTeamIds[0], () => 0)
   assert.equal(resolved.turnIndex, 13)
   assert.equal(resolved.history[1].id, 'high_running_style_decision')
   assert.equal(resolved.history[1].selectedRunningStyle, 'OIKOMI')
   assert.equal(resolved.history[1].recommendedRunningStyle, decision.recommendedStyle)
-  assert.strictEqual(finishHighSchoolRunningStyle(resolved, () => 0), resolved)
+  assert.equal(resolved.history[0].teamTraining.teamId, resolved.teamState.currentTeamId)
+  assert.equal(resolved.history[0].teamTraining.points, 1)
+  assert.strictEqual(finishHighSchoolRunningStyle(scouted, () => 0), scouted)
   assert.ok(advanceCareer(resolved, () => 0).highSchoolState.pendingEvent)
 })
 
@@ -1495,4 +1509,152 @@ test('a high school legend plan is rolled once and rapid selection cannot duplic
   assert.deepEqual({ speed: resolved.stats.speed, stamina: resolved.stats.stamina, intelligence: resolved.stats.intelligence }, { speed: 120, stamina: 120, intelligence: 120 })
   assert.strictEqual(finishHighSchoolLegend(resolved, () => 0), resolved)
   assert.equal(resolved.highSchoolLegend.completedLegendIds.length, 1)
+})
+
+test('initial team scouting offers exactly two unique lower-rank teams and resolves only once', () => {
+  const base = {
+    ...chooseGrowthType(createCareer({ lastName: '팀', firstName: '영입' }, seededRandom(101)), 'router'),
+    turnIndex: 12,
+    runningStyle: 'SENKO',
+    teamState: createTeamState(),
+  }
+  const offered = createInitialTeamOffers(base, seededRandom(102))
+  assert.equal(offered.teamState.initialOfferTeamIds.length, 2)
+  assert.equal(new Set(offered.teamState.initialOfferTeamIds).size, 2)
+  assert.ok(offered.teamState.initialOfferTeamIds.every((id) => INITIAL_TEAM_IDS.includes(id)))
+  assert.ok(offered.teamState.initialOfferTeamIds.every((id) => TEAM_BY_ID[id].rank >= 4))
+  assert.strictEqual(createInitialTeamOffers(offered, () => 0.99), offered)
+
+  const selectedId = offered.teamState.initialOfferTeamIds[0]
+  const joined = resolveInitialTeamOffer(offered, selectedId)
+  assert.equal(joined.teamState.currentTeamId, selectedId)
+  assert.equal(joined.teamState.teamTenureTurnCount, 0)
+  assert.equal(joined.teamState.history[0].type, 'TEAM_JOIN')
+  assert.strictEqual(resolveInitialTeamOffer(joined, offered.teamState.initialOfferTeamIds[1]), joined)
+})
+
+test('team training point schedules match every team tenure rule', () => {
+  assert.deepEqual([1, 2, 3, 4].map((turn) => getTeamTrainingPoints('TEAM_CANOPUS', turn)), [0, 1, 0, 1])
+  assert.deepEqual([1, 2, 3, 4].map((turn) => getTeamTrainingPoints('TEAM_ASELLA', turn)), [1, 1, 1, 1])
+  assert.deepEqual([1, 2, 3, 4].map((turn) => getTeamTrainingPoints('TEAM_CAPELLA', turn)), [1, 1, 1, 2])
+  assert.deepEqual([1, 2, 3, 4].map((turn) => getTeamTrainingPoints('TEAM_SIRIUS', turn)), [1, 1, 2, 1])
+  assert.deepEqual([1, 2, 3, 4].map((turn) => getTeamTrainingPoints('TEAM_SPICA', turn)), [1, 2, 1, 2])
+  assert.deepEqual([1, 2, 3].map((turn) => getTeamTrainingPoints('TEAM_RIGIL', turn)), [2, 2, 2])
+  assert.deepEqual([1, 2, 3].map((turn) => getTeamTrainingPoints('TEAM_TURF_QUEENS', turn)), [2, 2, 3])
+  assert.deepEqual([1, 2, 3, 4].map((turn) => getTeamTrainingPoints('TEAM_ATTAKE', turn)), [2, 3, 2, 3])
+})
+
+test('team turn plans are stable, apply once, ignore potential, and clamp stats', () => {
+  const makeCareer = (potential) => ({
+    ...chooseGrowthType(createCareer({ lastName: '팀', firstName: '훈련' }, () => 0.5), 'router'),
+    potential,
+    turnIndex: 16,
+    condition: '보통',
+    stats: { speed: 120, stamina: 119, power: 118, grit: 117, intelligence: 116 },
+    currentTurnHistory: { statsAfterEvent: { speed: 120, stamina: 119, power: 118, grit: 117, intelligence: 116 } },
+    teamState: { ...createTeamState(), currentTeamId: 'TEAM_ATTAKE', initialOffersResolved: true },
+  })
+  const lowPlan = createTeamTurnPlan(makeCareer(0), seededRandom(333))
+  const highPlan = createTeamTurnPlan(makeCareer(100), seededRandom(333))
+  assert.deepEqual(lowPlan.training, highPlan.training)
+
+  const plannedCareer = { ...makeCareer(50), teamState: { ...makeCareer(50).teamState, turnPlans: { 17: lowPlan } } }
+  const applied = applyTeamTurnPlan(plannedCareer, () => 0.99)
+  assert.equal(applied.teamState.teamTenureTurnCount, 1)
+  assert.ok(Object.values(applied.stats).every((value) => value <= MAX_STAT))
+  assert.deepEqual(applied.currentTurnHistory.teamGrowth, lowPlan.training.statChanges)
+  assert.strictEqual(applyTeamTurnPlan(applied, () => 0), applied)
+})
+
+test('team condition support uses each base chance, adds twenty points when struggling, and skips top condition', () => {
+  const samples = 10_000
+  for (const teamId of Object.keys(TEAM_BY_ID)) {
+    const team = TEAM_BY_ID[teamId]
+    const simulate = (condition, seed) => {
+      const rng = seededRandom(seed)
+      let successes = 0
+      for (let index = 0; index < samples; index += 1) {
+        const career = {
+          ...chooseGrowthType(createCareer({ lastName: '지원', firstName: '검증' }, () => 0.5), 'miler'),
+          turnIndex: 16,
+          condition,
+          stats: { speed: 50, stamina: 50, power: 50, grit: 50, intelligence: 50 },
+          teamState: { ...createTeamState(), currentTeamId: teamId, initialOffersResolved: true },
+        }
+        if (createTeamTurnPlan(career, rng).conditionSupport.success) successes += 1
+      }
+      return successes / samples
+    }
+    assert.ok(Math.abs(simulate('보통', team.rank * 10) - team.recoveryChance / 100) < 0.02, teamId)
+    assert.ok(Math.abs(simulate('저조', team.rank * 10 + 1) - (team.recoveryChance + 20) / 100) < 0.02, `${teamId} low`)
+  }
+  const top = createTeamTurnPlan({
+    ...chooseGrowthType(createCareer({ lastName: '지원', firstName: '최상' }, () => 0.5), 'miler'),
+    turnIndex: 16,
+    condition: '최상',
+    teamState: { ...createTeamState(), currentTeamId: 'TEAM_CANOPUS', initialOffersResolved: true },
+  }, () => 0)
+  assert.equal(top.conditionSupport.rolled, false)
+  assert.equal(top.conditionSupport.success, false)
+})
+
+test('team reputation counts G1 results and unique route achievements at the requested values', () => {
+  const career = {
+    history: [{ races: [
+      { grade: 'G1', finishPosition: 1 },
+      { raceType: 'G1', finishPosition: 3 },
+      { grade: 'G1', finishPosition: 6 },
+      { grade: 'G1', finishPosition: 9 },
+      { grade: 'G2', finishPosition: 1 },
+    ] }],
+    highYear2: { achievements: [{ id: 'CLASSIC_TRIPLE_CROWN' }] },
+    highYear3: { achievements: [{ id: 'SPRINT_KING' }, { id: 'SPRINT_KING' }] },
+  }
+  assert.equal(calculateTeamReputation(career), 71)
+})
+
+test('transfer checkpoints offer only eligible stronger teams and acceptance resets tenure once', () => {
+  const base = {
+    ...chooseGrowthType(createCareer({ lastName: '팀', firstName: '이적' }, () => 0.5), 'router'),
+    turnIndex: 16,
+    runningStyle: 'SENKO',
+    history: [{ races: [{ grade: 'G1', finishPosition: 1 }] }],
+    teamState: { ...createTeamState(), currentTeamId: 'TEAM_CANOPUS', initialOffersResolved: true, teamTenureTurnCount: 4 },
+  }
+  const eligible = getEligibleTransferTeams(base)
+  assert.ok(eligible.every(({ rank, minimumReputation }) => rank < 8 && minimumReputation <= 20))
+  assert.ok(eligible.some(({ id }) => id === 'TEAM_RIGIL'))
+  assert.ok(!eligible.some(({ id }) => id === 'TEAM_TURF_QUEENS' || id === 'TEAM_ATTAKE'))
+
+  const spicaAt51 = {
+    ...base,
+    history: [{ races: [
+      { grade: 'G1', finishPosition: 1 }, { grade: 'G1', finishPosition: 1 },
+      { grade: 'G1', finishPosition: 2 }, { grade: 'G1', finishPosition: 6 },
+    ] }],
+    teamState: { ...base.teamState, currentTeamId: 'TEAM_SPICA' },
+  }
+  assert.deepEqual(getEligibleTransferTeams(spicaAt51).map(({ id }) => id), ['TEAM_TURF_QUEENS', 'TEAM_RIGIL'])
+
+  const rigilAt80 = {
+    ...base,
+    history: [{ races: Array.from({ length: 4 }, () => ({ grade: 'G1', finishPosition: 1 })) }],
+    teamState: { ...base.teamState, currentTeamId: 'TEAM_RIGIL' },
+  }
+  assert.deepEqual(getEligibleTransferTeams(rigilAt80).map(({ id }) => id), ['TEAM_ATTAKE', 'TEAM_TURF_QUEENS'])
+
+  const offered = prepareTeamTransferCheckpoint(base, seededRandom(701))
+  assert.equal(offered.teamState.currentTransferOffer.beforeTurn, 17)
+  assert.strictEqual(prepareTeamTransferCheckpoint(offered, () => 0.99), offered)
+  const offeredTeamId = offered.teamState.currentTransferOffer.teamId
+  const accepted = resolveTeamTransferOffer(offered, true)
+  assert.equal(accepted.teamState.currentTeamId, offeredTeamId)
+  assert.equal(accepted.teamState.teamTenureTurnCount, 0)
+  assert.equal(accepted.teamState.transferCheckpointsResolved.beforeTurn17, true)
+  assert.equal(accepted.teamState.history.at(-1).type, 'TEAM_TRANSFER')
+  assert.strictEqual(resolveTeamTransferOffer(accepted, true), accepted)
+
+  const rejected = resolveTeamTransferOffer(prepareTeamTransferCheckpoint(base, seededRandom(702)), false)
+  assert.equal(rejected.teamState.currentTeamId, 'TEAM_CANOPUS')
+  assert.equal(rejected.teamState.teamTenureTurnCount, 4)
 })

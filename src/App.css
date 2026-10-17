@@ -307,6 +307,16 @@ button { border: 0; }
 .legend-history > strong { color: var(--gold); display: block; font-size: 11px; margin-bottom: 5px; }
 .history-legend-effects { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 7px; }
 .history-legend-effects small { color: var(--gold); font-size: 10px; font-weight: 800; }
+.team-scout-modal { border-color: var(--gold); }
+.team-offer-list { display: grid; gap: 9px; margin: 12px 0; }
+.team-offer-card { align-items: center; background: #121015; border: 1px solid var(--line); display: grid; gap: 8px 10px; grid-template-columns: 66px minmax(0, 1fr); padding: 10px; }
+.team-portrait { aspect-ratio: 1; background: #19161e; border: 1px solid rgba(232, 202, 105, .45); object-fit: cover; width: 66px; }
+.team-offer-card h3 { color: var(--gold); font: 400 18px Georgia, serif; margin: 0 0 2px; }
+.team-offer-card p { color: #d5ceda; font-size: 11px; line-height: 1.45; margin: 1px 0; overflow-wrap: anywhere; }
+.team-offer-card small { color: var(--muted); font-size: 9px; }
+.team-offer-card button { background: rgba(155, 93, 229, .14); border: 1px solid rgba(155, 93, 229, .45); color: var(--text); cursor: pointer; font-size: 12px; font-weight: 800; grid-column: 1 / -1; min-height: 44px; padding: 8px; }
+.team-decline { width: 100%; }
+.legend-modal .team-portrait { display: block; margin: 0 auto 10px; width: min(42vw, 150px); }
 
 .turn-action {
   background: linear-gradient(to top, var(--bg) 72%, rgba(21, 20, 25, 0));

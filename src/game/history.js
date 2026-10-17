@@ -31,6 +31,7 @@ export function beginTurnHistory(career, turn) {
     statsAfter: null,
     baseGrowth: {},
     eventGrowth: {},
+    teamGrowth: {},
     legendGrowth: {},
     totalGrowth: {},
     expectedGrowth: 0,
@@ -61,8 +62,10 @@ export function finalizeTurnHistory(career, { event = null, choice = null, outco
   for (const { id } of STATS) {
     history.baseGrowth[id] = history.statsAfterBase[id] - history.statsBefore[id]
     const statsAfterEvent = history.statsAfterEvent ?? history.statsAfter
+    const statsAfterTeam = history.statsAfterTeam ?? statsAfterEvent
     history.eventGrowth[id] = statsAfterEvent[id] - history.statsAfterBase[id]
-    history.legendGrowth[id] = history.statsAfter[id] - statsAfterEvent[id]
+    history.teamGrowth[id] = statsAfterTeam[id] - statsAfterEvent[id]
+    history.legendGrowth[id] = history.statsAfter[id] - statsAfterTeam[id]
     history.totalGrowth[id] = history.statsAfter[id] - history.statsBefore[id]
   }
   if (event) {

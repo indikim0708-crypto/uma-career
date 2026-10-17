@@ -13,6 +13,7 @@ import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../data/highSchool
 import { HIGH_YEAR3_RACES } from '../data/highSchoolYear3Races.js'
 import { pickHighYear3Event } from '../data/highSchoolYear3Events.js'
 import { ensureHighSchoolLegendPlan, getHighSchoolLegendDue } from './highSchoolLegend.js'
+import { applyTeamTurnPlan, createInitialTeamOffers, resolveInitialTeamOffer } from './highSchoolTeam.js'
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
 
@@ -140,7 +141,7 @@ function finalizeHighTurn(career, rng) {
 }
 
 export function startHighSchoolTurn(career, rng = Math.random) {
-  if (career.highSchoolState?.pendingEvent || career.highSchoolState?.pendingRace || career.highSchoolState?.pendingRunningStyleDecision || career.highSchoolLegend?.pendingLegend || career.highYear2?.pendingSpecial || career.highYear3?.pendingSpecial) return career
+  if (career.highSchoolState?.pendingEvent || career.highSchoolState?.pendingRace || career.highSchoolState?.pendingRunningStyleDecision || career.highSchoolLegend?.pendingLegend || (career.teamState?.initialOfferTeamIds.length && !career.teamState.initialOffersResolved) || career.highYear2?.pendingSpecial || career.highYear3?.pendingSpecial) return career
   if (career.turnIndex === 13 && !career.runningStyle) return career
   const withYear2 = career.turnIndex >= 16 && !career.highYear2 ? { ...career, highYear2: createHighYear2State() } : career
   const initialized = career.turnIndex >= 20 && !withYear2.highYear3 ? { ...withYear2, highYear3: createHighYear3State() } : withYear2
@@ -251,6 +252,7 @@ export function finishHighSchoolEvent(career, rng = Math.random) {
   const retry = turn === 15 && next.highSchoolState.debutStatus === 'FAILED_ONCE'
   const race = turn === 14 ? createDebutRace(next, false, rng) : retry ? createDebutRace(next, true, rng) : turn === 16 && next.highSchoolState.debutStatus === 'SUCCESS' && next.growthType.id !== 'sprinter' ? createG1Race(next) : null
   next = { ...next, highSchoolState: { ...next.highSchoolState, completedEventIds: [...next.highSchoolState.completedEventIds, event.id], pendingEvent: null, pendingOutcome: null, pendingRace: race } }
+  if (turn !== 13) next = applyTeamTurnPlan(next, rng)
   const highLegend = getHighSchoolLegendDue(next, turn)
   if (highLegend) return { ...next, highSchoolState: { ...next.highSchoolState, pendingRace: null }, highSchoolLegend: { ...next.highSchoolLegend, pendingLegend: highLegend, pendingOutcome: null } }
   if (turn >= 21 && turn <= 24) return beginYear3PostEvent(next, turn, rng)
@@ -385,7 +387,14 @@ export function finishHighSchoolRunningStyle(career, rng = Math.random) {
     logs: [specialHistory, ...(career.logs ?? [])].slice(0, 5),
     highSchoolState: { ...career.highSchoolState, pendingRunningStyleDecision: null, runningStyleDecisionResolved: true },
   }
-  return finalizeHighTurn(next, rng)
+  return createInitialTeamOffers(next, rng)
+}
+
+export function resolveInitialTeamSelection(career, teamId, rng = Math.random) {
+  if (!career.teamState?.initialOfferTeamIds.length || career.teamState.initialOffersResolved) return career
+  const resolved = resolveInitialTeamOffer(career, teamId)
+  if (resolved === career) return career
+  return finalizeHighTurn(applyTeamTurnPlan(resolved, rng), rng)
 }
 
 export function resolveHighSchoolRace(career, choiceId = 'run', rng = Math.random) {

@@ -159,7 +159,7 @@ export function advanceCareer(career, rng = Math.random) {
     }
   }
 
-  if (TURNS[career.turnIndex].stage === '고등부' && career.turnIndex <= 15) return startHighSchoolTurn(career, rng)
+  if (TURNS[career.turnIndex].stage === '고등부' && career.turnIndex <= 19) return startHighSchoolTurn(career, rng)
 
   const turn = TURNS[career.turnIndex]
   const currentTurnHistory = beginTurnHistory(career, turn)

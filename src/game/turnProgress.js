@@ -77,6 +77,13 @@ function hasLegendThisTurn(career, turnNumber) {
   return Boolean(career.middleState?.legendSchedule?.some(({ turn, triggered }) => turn === turnNumber && !triggered))
 }
 
+function hasHighSpecialThisTurn(career, turnNumber) {
+  if (turnNumber === 17) return true
+  if (turnNumber === 18) return career.highYear2?.route !== 'SPRINT'
+  if (turnNumber === 20) return true
+  return turnNumber === 14 || (turnNumber === 15 && career.highSchoolState?.debutStatus === 'FAILED_ONCE') || (turnNumber === 16 && career.highSchoolState?.debutStatus === 'SUCCESS' && career.growthType.id !== 'sprinter')
+}
+
 export function createTurnProgressPlan(career, rng = Math.random) {
   const turn = TURNS[career.turnIndex]
   if (!turn || !['초등부', '중등부', '고등부'].includes(turn.stage)) return null
@@ -90,7 +97,7 @@ export function createTurnProgressPlan(career, rng = Math.random) {
   }
   const messages = selectTurnProgressMessages(context, career.recentProgressMessageIds ?? [], rng)
   const eventProgressPoint = 0.35 + rng() * 0.35
-  const legendRequired = stage === 'MIDDLE' ? hasLegendThisTurn(career, turn.number) : stage === 'HIGH' && (turn.number === 14 || (turn.number === 15 && career.highSchoolState?.debutStatus === 'FAILED_ONCE') || (turn.number === 16 && career.highSchoolState?.debutStatus === 'SUCCESS' && career.growthType.id !== 'sprinter'))
+  const legendRequired = stage === 'MIDDLE' ? hasLegendThisTurn(career, turn.number) : stage === 'HIGH' && hasHighSpecialThisTurn(career, turn.number)
   const legendProgressPoint = legendRequired
     ? Math.max(0.70 + rng() * 0.15, Math.min(0.85, eventProgressPoint + 0.12))
     : null

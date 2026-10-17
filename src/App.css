@@ -242,6 +242,12 @@ button { border: 0; }
 .running-style-choices small { color: #c8c0cd; font-size: 11px; line-height: 1.45; }
 .running-style-choices b { color: var(--violet-soft); font-size: 10px; }
 .running-style-choices button:active { background: #302938; border-color: var(--gold); }
+.season-status { background: rgba(232, 202, 105, 0.06); border-left: 2px solid var(--gold); display: grid; gap: 4px; margin-top: 10px; padding: 9px 10px; }
+.season-status > strong { color: var(--gold); font-size: 11px; margin-bottom: 2px; }
+.season-status p { display: flex; gap: 8px; justify-content: space-between; margin: 0; min-width: 0; }
+.season-status span { color: #d8d0dc; font-size: 10px; overflow-wrap: anywhere; }
+.season-status em { color: var(--violet-soft); flex: 0 0 auto; font-size: 10px; font-style: normal; font-weight: 800; }
+.achievement-history { background: rgba(232, 202, 105, 0.09); border-color: var(--gold); }
 .race-sequence { padding-top: 2px; }
 .race-sequence header { align-items: flex-start; display: flex; gap: 10px; justify-content: space-between; }
 .race-sequence header > div:first-child { min-width: 0; }
@@ -287,6 +293,9 @@ button { border: 0; }
 .admission-destination { background: #121015; border: 1px solid var(--line); display: grid; gap: 6px; margin: 0 0 14px; padding: 12px; }
 .admission-destination span { color: var(--muted); font-size: 10px; letter-spacing: 0.08em; }
 .admission-destination strong { color: #f4edf8; font-size: 14px; overflow-wrap: anywhere; }
+.achievement-modal { border-color: var(--gold); text-align: center; }
+.achievement-mark { color: var(--gold); font-size: 38px; line-height: 1; margin: 5px 0 10px; text-shadow: 0 0 24px rgba(232, 202, 105, 0.45); }
+.achievement-modal .event-situation { line-height: 1.75; }
 
 .legend-modal { border-color: var(--gold); box-shadow: 0 0 32px rgba(232, 202, 105, 0.2), 0 18px 60px rgba(0, 0, 0, 0.7); text-align: center; }
 .legend-portrait { aspect-ratio: 1; background: #121015; border: 1px solid rgba(232, 202, 105, 0.5); display: block; margin: 0 auto 10px; max-width: 200px; object-fit: cover; object-position: center; width: min(52vw, 200px); }

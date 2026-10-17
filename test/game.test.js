@@ -27,8 +27,40 @@ import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDuratio
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
 import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, calculateHighSchoolSpecialtyScore, calculateHighSchoolSpecialtyStat, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
-import { completeHighSchoolRaceSequence, createHighSchoolState, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
+import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
 import { createRacePlan } from '../src/game/racePlan.js'
+import { HIGH_SCHOOL_YEAR2_EVENTS } from '../src/data/highSchoolYear2Events.js'
+import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../src/data/highSchoolYear2Races.js'
+
+function makeHighYear2Career(growthTypeId = 'router') {
+  const rng = seededRandom(900)
+  return {
+    ...chooseGrowthType(createCareer({ lastName: '시즌', firstName: '테스트' }, rng), growthTypeId),
+    stats: { speed: 72, stamina: 72, power: 72, grit: 72, intelligence: 72 },
+    turnIndex: 16,
+    condition: '보통',
+    stability: 50,
+    runningStyle: 'SENKO',
+    history: [],
+    logs: [],
+    recentProgressMessageIds: [],
+    highSchoolState: createHighSchoolState(),
+    highYear2: null,
+  }
+}
+
+function finishHighYear2RegularEvent(career, rng = () => 0.5) {
+  let next = advanceCareer(career, rng)
+  assert.ok(next.highSchoolState.pendingEvent)
+  next = selectHighSchoolEventChoice(next, next.highSchoolState.pendingEvent.choices[0].id, rng)
+  return finishHighSchoolEvent(next, rng)
+}
+
+function finishPendingHighRace(career, rng = () => 0) {
+  let next = resolveHighSchoolRace(career, career.highSchoolState.pendingRace.choices[0].id, rng)
+  next = completeHighSchoolRaceSequence(next)
+  return finishHighSchoolRace(next, rng)
+}
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -74,6 +106,9 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
     if (career.highSchoolState?.pendingRunningStyleDecision) {
       career = selectHighSchoolRunningStyle(career, 'SENKO')
       career = finishHighSchoolRunningStyle(career, rng)
+    }
+    if (career.highYear2?.pendingSpecial) {
+      career = resolveHighYear2Special(career, career.highYear2.pendingSpecial.choices[0].id, rng)
     }
     if (career.highSchoolState?.pendingRace) {
       career = resolveHighSchoolRace(career, career.highSchoolState.pendingRace.choices[0].id, rng)
@@ -228,7 +263,7 @@ test('career completes after turn 24 and stats never exceed 120', () => {
 })
 
 test('all event choices have exactly three outcomes with total weight 100', () => {
-  for (const event of [...ELEMENTARY_COMMON_EVENTS, ...ELEMENTARY_SCHOOL_EVENTS]) {
+  for (const event of [...ELEMENTARY_COMMON_EVENTS, ...ELEMENTARY_SCHOOL_EVENTS, ...HIGH_SCHOOL_YEAR2_EVENTS]) {
     assert.equal(event.choices.length, 3, event.id)
     for (const choice of event.choices) {
       assert.equal(choice.outcomes.length, 3, `${event.id}/${choice.id}`)
@@ -1066,4 +1101,137 @@ test('turn progress plan keeps gameplay values unchanged and schedules event and
   assert.ok(legendPlan.legendProgressPoint >= 0.70 && legendPlan.legendProgressPoint <= 0.85)
   assert.ok(legendPlan.legendProgressPoint > legendPlan.eventProgressPoint)
   assert.equal(legendPlan.messages.filter(({ category }) => category === 'CONDITION_DOWN').length, 1)
+})
+
+test('high school year two data has 20 unique events and the requested stable race schedule', () => {
+  assert.equal(HIGH_SCHOOL_YEAR2_EVENTS.length, 20)
+  assert.equal(new Set(HIGH_SCHOOL_YEAR2_EVENTS.map(({ id }) => id)).size, 20)
+  assert.ok(HIGH_SCHOOL_YEAR2_EVENTS.every(({ type, choices }) => type === 'HIGH_YEAR2_COMMON' && choices.length === 3))
+  assert.deepEqual(TURN18_RACES.CLASSIC_TRIPLE, ['satsuki_sho', 'japan_derby'])
+  assert.deepEqual(TURN18_RACES.TRIPLE_TIARA, ['oka_sho', 'oaks'])
+  assert.deepEqual(TURN20_RACES, {
+    SPRINT: ['sprinters_stakes'],
+    MILE: ['mile_championship'],
+    CLASSIC_TRIPLE: ['kikuka_sho'],
+    TRIPLE_TIARA: ['shuka_sho'],
+    LONG: ['kikuka_sho'],
+  })
+  assert.deepEqual([
+    HIGH_YEAR2_RACES.sprinters_stakes.distance,
+    HIGH_YEAR2_RACES.mile_championship.distance,
+    HIGH_YEAR2_RACES.kikuka_sho.distance,
+    HIGH_YEAR2_RACES.shuka_sho.distance,
+  ], ['1200m', '1600m', '3000m', '2000m'])
+  assert.deepEqual([
+    HIGH_YEAR2_RACES.oka_sho.raceName,
+    HIGH_YEAR2_RACES.kikuka_sho.raceName,
+    HIGH_YEAR2_RACES.shuka_sho.raceName,
+  ], ['벚꽃상', '국화상', '추화상'])
+})
+
+test('router classic route runs every regular event, two spring G1s, no summer G1, and unlocks the triple crown', () => {
+  let career = finishHighYear2RegularEvent(makeHighYear2Career('router'))
+  assert.equal(career.highYear2.pendingSpecial.id, 'high2_classic_season')
+  assert.deepEqual(career.highYear2.pendingSpecial.choices.map(({ id }) => id), ['CLASSIC_TRIPLE', 'TRIPLE_TIARA'])
+  career = resolveHighYear2Special(career, 'CLASSIC_TRIPLE', () => 0.5)
+  assert.equal(career.turnIndex, 17)
+  assert.equal(career.highYear2.route, 'CLASSIC_TRIPLE')
+  assert.equal(career.history[0].seasonRoute, 'CLASSIC_TRIPLE')
+
+  career = finishHighYear2RegularEvent(career)
+  assert.equal(career.highSchoolState.pendingRace.raceId, 'satsuki_sho')
+  const springHistoryCount = career.history.length
+  career = finishPendingHighRace(career)
+  assert.equal(career.highSchoolState.pendingRace.raceId, 'japan_derby')
+  const afterFirstCondition = career.condition
+  career = finishPendingHighRace(career)
+  assert.equal(career.turnIndex, 18)
+  assert.equal(career.highYear2.consecutivePenaltyApplied, true)
+  assert.equal(career.condition, afterFirstCondition)
+  assert.equal(career.history.length, springHistoryCount + 1)
+  assert.deepEqual(career.history[0].races.map(({ raceId }) => raceId), ['satsuki_sho', 'japan_derby'])
+
+  career = finishHighYear2RegularEvent(career)
+  assert.equal(career.turnIndex, 19)
+  assert.equal(career.highSchoolState.pendingRace, null)
+  career = finishHighYear2RegularEvent(career)
+  assert.equal(career.highSchoolState.pendingRace.raceId, 'kikuka_sho')
+  career = finishPendingHighRace(career)
+  assert.equal(career.turnIndex, 20)
+  assert.deepEqual(career.highYear2.achievements.map(({ id }) => id), ['CLASSIC_TRIPLE_CROWN'])
+  assert.equal(career.highYear2.pendingAchievement.name, '클래식 삼관')
+  assert.equal(career.history[0].achievements[0].name, '클래식 삼관')
+  assert.equal(new Set(career.highSchoolState.completedEventIds).size, 4)
+  assert.equal(career.highSchoolState.completedEventIds.length, 4)
+})
+
+test('tiara, mile, and long routes preserve their distinct queues and achievement rules', () => {
+  let tiara = finishHighYear2RegularEvent(makeHighYear2Career('router'))
+  tiara = resolveHighYear2Special(tiara, 'TRIPLE_TIARA', () => 0.5)
+  tiara = finishHighYear2RegularEvent(tiara)
+  assert.equal(tiara.highSchoolState.pendingRace.raceName, '벚꽃상')
+  tiara = finishPendingHighRace(tiara)
+  assert.equal(tiara.highSchoolState.pendingRace.raceName, '오크스')
+  tiara = finishPendingHighRace(tiara)
+  tiara = finishHighYear2RegularEvent(tiara)
+  tiara = finishHighYear2RegularEvent(tiara)
+  assert.equal(tiara.highSchoolState.pendingRace.raceName, '추화상')
+  tiara = finishPendingHighRace(tiara)
+  assert.deepEqual(tiara.highYear2.achievements.map(({ id }) => id), ['TRIPLE_TIARA'])
+
+  let mile = finishHighYear2RegularEvent(makeHighYear2Career('miler'))
+  mile = resolveHighYear2Special(mile, 'MILE', () => 0.5)
+  mile = finishHighYear2RegularEvent(mile)
+  assert.equal(mile.highSchoolState.pendingRace.raceId, 'nhk_mile_cup')
+  mile = finishPendingHighRace(mile)
+  assert.equal(mile.highYear2.pendingSpecial.id, 'high2_derby_dream')
+  mile = resolveHighYear2Special(mile, 'ENTER_DERBY', () => 0.5)
+  assert.equal(mile.highSchoolState.pendingRace.raceId, 'japan_derby')
+  mile = finishPendingHighRace(mile)
+  assert.equal(mile.highYear2.enteredJapanDerby, true)
+  assert.equal(mile.highYear2.consecutivePenaltyApplied, true)
+
+  let long = finishHighYear2RegularEvent(makeHighYear2Career('stayer'))
+  long = resolveHighYear2Special(long, 'LONG', () => 0.5)
+  long = finishHighYear2RegularEvent(long)
+  assert.equal(long.highSchoolState.pendingRace, null)
+  assert.equal(long.highYear2.pendingSpecial.id, 'high2_derby_dream')
+  long = resolveHighYear2Special(long, 'ENTER_DERBY', () => 0.5)
+  long = finishPendingHighRace(long)
+  long = finishHighYear2RegularEvent(long)
+  long = finishHighYear2RegularEvent(long)
+  long = finishPendingHighRace(long)
+  assert.equal(long.highYear2.raceResults.japan_derby.won, true)
+  assert.equal(long.highYear2.raceResults.kikuka_sho.won, true)
+  assert.deepEqual(long.highYear2.achievements, [])
+})
+
+test('sprint skips the spring G1 and one missed classic win prevents the triple crown without cancelling later races', () => {
+  let sprint = finishHighYear2RegularEvent(makeHighYear2Career('sprinter'))
+  sprint = resolveHighYear2Special(sprint, 'SPRINT', () => 0.5)
+  sprint = finishHighYear2RegularEvent(sprint)
+  assert.equal(sprint.turnIndex, 18)
+  assert.equal(sprint.highSchoolState.pendingRace, null)
+  sprint = finishHighYear2RegularEvent(sprint)
+  sprint = finishHighYear2RegularEvent(sprint)
+  assert.equal(sprint.highSchoolState.pendingRace.raceId, 'sprinters_stakes')
+
+  let missed = makeHighYear2Career('router')
+  missed = {
+    ...missed,
+    turnIndex: 19,
+    highYear2: {
+      ...createHighYear2State(),
+      route: 'CLASSIC_TRIPLE',
+      raceResults: {
+        satsuki_sho: { raceId: 'satsuki_sho', won: true },
+        japan_derby: { raceId: 'japan_derby', won: false },
+      },
+    },
+  }
+  missed = finishHighYear2RegularEvent(missed)
+  assert.equal(missed.highSchoolState.pendingRace.raceId, 'kikuka_sho')
+  missed = finishPendingHighRace(missed)
+  assert.equal(missed.highYear2.raceResults.kikuka_sho.won, true)
+  assert.deepEqual(missed.highYear2.achievements, [])
 })

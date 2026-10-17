@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { GROWTH_TYPES } from './data/growthTypes.js'
 import { getRunningStyle, RUNNING_STYLES } from './data/runningStyles.js'
@@ -22,6 +22,9 @@ import { HIGH_YEAR2_RACES, HIGH_YEAR2_ROUTE_LABELS } from './data/highSchoolYear
 import { TEAM_BY_ID } from './data/highSchoolTeams.js'
 import { resolveTeamTransferOffer } from './game/highSchoolTeam.js'
 import { deleteCareerSave, loadCareerSave, saveCareerState } from './game/saveSystem.js'
+import ResultExportCard from './components/ResultExportCard.jsx'
+import { buildCareerResultSummary } from './game/resultSummary.js'
+import { buildResultImageFilename, createResultImageBlob, saveOrShareResultImage } from './game/resultImageExport.js'
 
 const SCREENS = {
   HOME: 'HOME',
@@ -611,8 +614,46 @@ function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, o
 }
 
 function Complete({ career, onRestart }) {
+  const exportRef = useRef(null)
+  const exportingRef = useRef(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportStatus, setExportStatus] = useState('')
+  const [generatedDate] = useState(() => new Date().toLocaleDateString('ko-KR'))
+  const summary = buildCareerResultSummary(career)
+
+  const handleExport = async () => {
+    if (exportingRef.current) return
+    exportingRef.current = true
+    setIsExporting(true)
+    setExportStatus('')
+    try {
+      const { blob } = await createResultImageBlob(exportRef.current)
+      const filename = buildResultImageFilename(career.fullName)
+      const result = await saveOrShareResultImage({ blob, filename })
+      setExportStatus(result === 'shared' ? '결과 이미지를 공유했습니다.' : '결과 이미지를 저장했습니다.')
+    } catch (error) {
+      console.warn('UMA CAREER result image export failed.', error)
+      setExportStatus('결과 이미지를 만들지 못했습니다. 다시 시도해주세요.')
+    } finally {
+      exportingRef.current = false
+      setIsExporting(false)
+    }
+  }
+
+  const resultTools = <>
+    <div className="result-actions">
+      <div className="result-actions-primary">
+        <button className="primary-button" type="button" onClick={handleExport} disabled={isExporting}><span>{isExporting ? '저장 중...' : '저장하기'}</span><span aria-hidden="true">↓</span></button>
+        <a className="secondary-button result-action-link" href="https://uma-race.vercel.app/" target="_blank" rel="noopener noreferrer"><span>경마장 가기</span><span aria-hidden="true">↗</span></a>
+      </div>
+      {exportStatus && <p className="result-export-status" role="status">{exportStatus}</p>}
+      <button className="secondary-button" type="button" onClick={onRestart}><span>새로운 커리어 시작</span><span aria-hidden="true">↻</span></button>
+    </div>
+    <ResultExportCard ref={exportRef} summary={summary} generatedDate={generatedDate} />
+  </>
+
   if (career.badEnding) {
-    return <main className="result-page page-shell"><header className="topbar"><Brand /><span className="phase-label">BAD END</span></header><div className="result-hero"><p className="eyebrow">고등부 1학년 3분기 · 데뷔전 2회 실패</p><h1>{career.badEnding.title}</h1></div><div className="result-layout"><section className="panel ending-panel"><p className="section-kicker">BAD END</p><p>{career.badEnding.body}</p></section><section className="panel result-stats"><p className="section-kicker">FINAL ABILITY</p><h2>최종 능력치</h2><StatGrid stats={career.stats} /></section></div><button className="primary-button restart-button" type="button" onClick={onRestart}><span>새 커리어 시작</span><span aria-hidden="true">↻</span></button></main>
+    return <main className="result-page page-shell"><header className="topbar"><Brand /><span className="phase-label">BAD END</span></header><div className="result-hero"><p className="eyebrow">고등부 1학년 3분기 · 데뷔전 2회 실패</p><h1>{career.badEnding.title}</h1></div><div className="result-layout"><section className="panel ending-panel"><p className="section-kicker">BAD END</p><p>{career.badEnding.body}</p></section><section className="panel result-stats"><p className="section-kicker">FINAL ABILITY</p><h2>최종 능력치</h2><StatGrid stats={career.stats} /></section></div>{resultTools}</main>
   }
   if (career.nonRacerEnding) {
     const ending = career.nonRacerEnding
@@ -626,13 +667,13 @@ function Complete({ career, onRestart }) {
           <section className="panel result-stats"><p className="section-kicker">FINAL ABILITY</p><h2>최종 능력치</h2><StatGrid stats={career.stats} /></section>
           <section className="panel ending-panel"><p className="section-kicker">ANOTHER PATH</p><h2>「{ending.title}」</h2><p>{ending.body}</p></section>
         </div>
-        <button className="primary-button restart-button" type="button" onClick={onRestart}><span>새 커리어 시작</span><span aria-hidden="true">↻</span></button>
+        {resultTools}
       </main>
     )
   }
-  const g1Races = (career.history ?? []).flatMap((log) => log.races ?? (log.race ? [log.race] : [])).filter((race) => race.grade === 'G1' || race.raceType === 'G1')
-  const g1Wins = g1Races.filter(({ won }) => won)
-  const achievements = [...(career.highYear2?.achievements ?? []), ...(career.highYear3?.achievements ?? [])]
+  const g1Races = summary.g1Results
+  const g1Wins = summary.majorWins
+  const achievements = summary.achievements
   const teamHistory = career.teamState?.history ?? []
   return (
     <main className="result-page page-shell">
@@ -672,7 +713,7 @@ function Complete({ career, onRestart }) {
         {achievements.length > 0 && <section className="panel achievement-panel"><p className="section-kicker">ACHIEVEMENTS</p><h2>시즌 업적</h2>{achievements.map((achievement) => <p key={achievement.id}>★ {achievement.name}</p>)}</section>}
         <section className="panel achievement-panel"><p className="section-kicker">TEAM CAREER</p><h2>팀 이력</h2>{teamHistory.length ? teamHistory.map((entry, index) => <p key={`${entry.type}-${index}`}>{entry.type === 'TEAM_JOIN' ? `TURN 13 · ${entry.teamName} 가입` : entry.type === 'TEAM_TRANSFER' ? `TURN ${entry.beforeTurn} 전 · ${TEAM_BY_ID[entry.fromTeamId]?.name ?? '무소속'} → ${TEAM_BY_ID[entry.toTeamId]?.name}` : 'TURN 13 · 무소속 선택'}</p>) : <p>무소속</p>}<p><strong>최종 · {TEAM_BY_ID[career.teamState?.currentTeamId]?.name ?? '무소속'}</strong></p></section>
       </div>
-      <button className="primary-button restart-button" type="button" onClick={onRestart}><span>다시 시작하기</span><span aria-hidden="true">↻</span></button>
+      {resultTools}
     </main>
   )
 }

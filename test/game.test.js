@@ -41,6 +41,8 @@ import { INITIAL_TEAM_IDS, TEAM_BY_ID } from '../src/data/highSchoolTeams.js'
 import { STAYER_STAT_NORMS, TURN13_STAT_NORMS } from '../src/data/runningStyleRecommendationBalance.js'
 import { normalizeTurn13Stats, recommendRunningStyle, safeZScore } from '../src/game/runningStyleRecommendation.js'
 import { buildSaveSnapshot, CAREER_SAVE_KEY, deleteCareerSave, hasCareerSave, loadCareerSave, saveCareerState, validateSaveData } from '../src/game/saveSystem.js'
+import { buildCareerResultSummary } from '../src/game/resultSummary.js'
+import { buildResultImageFilename } from '../src/game/resultImageExport.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -1810,4 +1812,72 @@ test('storage failures are isolated and deleting a save fully removes it', () =>
   } finally {
     console.warn = originalWarn
   }
+})
+
+test('result summary keeps canonical race order and deduplicates achievements and team steps', () => {
+  const base = chooseGrowthType(createCareer({ lastName: '결과', firstName: '검증' }, seededRandom(901)), 'router')
+  const raceOne = { raceId: 'satsuki_sho', raceName: '사츠키상', grade: 'G1', raceType: 'G1', turn: 18, periodLabel: '고등부 2학년 2분기', finishPosition: 1, won: true }
+  const raceTwo = { raceId: 'japan_derby', raceName: '일본 더비', grade: 'G1', raceType: 'G1', turn: 18, periodLabel: '고등부 2학년 2분기', finishPosition: 3, won: false }
+  const career = {
+    ...base,
+    complete: true,
+    runningStyle: 'SASHI',
+    middleState: { schoolId: 'central_tracen_middle', schoolName: '중앙 트레센 학원' },
+    highSchoolAdmission: { accepted: true },
+    highSchoolState: { debutStatus: 'SUCCESS' },
+    history: [
+      { kind: 'TURN', turn: 19, races: [], legendEvent: { legendId: 'ALMOND_EYE', characterName: '아몬드 아이', title: '시대를 넘어서는 시선' } },
+      { kind: 'TURN', turn: 18, race: raceTwo, races: [raceOne, raceTwo] },
+      { kind: 'TRANSFER', turn: 3, accepted: true, fromSchoolName: '메지로 초등학교', destinationSchoolName: '중앙 트레센 초등학교' },
+      { id: 'middle_distance_change', changed: true, previousGrowthTypeName: '마일러', selectedGrowthTypeName: '라우터' },
+    ],
+    highYear2: { route: 'CLASSIC_TRIPLE', derbyDecisionResolved: true, enteredJapanDerby: true, achievements: [{ id: 'CLASSIC_TRIPLE_CROWN', name: '클래식 삼관' }] },
+    highYear3: { achievements: [{ id: 'CLASSIC_TRIPLE_CROWN', name: '클래식 삼관' }, { id: 'AUTUMN_TRIPLE', name: '가을 고마 3관' }] },
+    teamState: { currentTeamId: 'TEAM_RIGIL', history: [
+      { type: 'TEAM_JOIN', turn: 13, teamId: 'TEAM_SPICA' },
+      { type: 'TEAM_TRANSFER', beforeTurn: 17, toTeamId: 'TEAM_SPICA' },
+      { type: 'TEAM_TRANSFER', beforeTurn: 21, toTeamId: 'TEAM_RIGIL' },
+    ] },
+  }
+  const summary = buildCareerResultSummary(career)
+  assert.deepEqual(summary.g1Results.map(({ raceId }) => raceId), ['satsuki_sho', 'japan_derby'])
+  assert.equal(summary.raceSummary.g1Starts, 2)
+  assert.equal(summary.raceSummary.g1Wins, 1)
+  assert.equal(summary.raceSummary.g1Top3, 2)
+  assert.deepEqual(summary.achievements.map(({ id }) => id), ['CLASSIC_TRIPLE_CROWN', 'AUTUMN_TRIPLE'])
+  assert.deepEqual(summary.teamCareer.map(({ teamId }) => teamId), ['TEAM_SPICA', 'TEAM_RIGIL'])
+  assert.equal(summary.legends[0].name, '아몬드 아이')
+  assert.ok(summary.careerPath.includes('중앙 트레센 초등학교'))
+  assert.ok(summary.notes.some(({ value }) => value === '마일러 → 라우터'))
+  assert.equal(summary.ending.title, '중앙 트레센 학원 고등부 졸업')
+})
+
+test('result summary supports non-racer and debut bad endings without high-school season data', () => {
+  const base = chooseGrowthType(createCareer({ lastName: '짧은', firstName: '엔딩' }, seededRandom(902)), 'stayer')
+  const nonRacer = buildCareerResultSummary({
+    ...base,
+    complete: true,
+    middleState: { schoolId: 'kochi_tracen_middle', schoolName: '고치 트레센 학원' },
+    nonRacerEnding: { title: '레이스를 읽는 사람', career: '레이스 분석가', body: '새로운 길을 찾았습니다.' },
+  })
+  assert.equal(nonRacer.ending.type, 'ANOTHER PATH')
+  assert.equal(nonRacer.ending.detail, '레이스 분석가')
+  assert.equal(nonRacer.g1Results.length, 0)
+  assert.equal(nonRacer.profile.highSchool, null)
+
+  const badEnd = buildCareerResultSummary({
+    ...base,
+    complete: true,
+    middleState: { schoolId: 'central_tracen_middle', schoolName: '중앙 트레센 학원' },
+    highSchoolAdmission: { accepted: true },
+    highSchoolState: { debutStatus: 'FAILED_ONCE' },
+    badEnding: { title: '끝내 넘지 못한 데뷔의 벽', body: '선수 생활을 마쳤습니다.' },
+  })
+  assert.equal(badEnd.ending.type, 'BAD END')
+  assert.equal(badEnd.ending.title, '끝내 넘지 못한 데뷔의 벽')
+  assert.equal(badEnd.achievements.length, 0)
+})
+
+test('result image filename preserves Korean names and strips unsafe characters', () => {
+  assert.equal(buildResultImageFilename('심볼리 / 루나:*?', new Date(2026, 9, 18)), 'uma-career_심볼리루나_2026-10-18.png')
 })

@@ -1,6 +1,5 @@
 import { HIGH_SCHOOL_YEAR1_EVENTS } from '../data/highSchoolYear1Events.js'
 import { MAX_STAT, STATS } from '../data/stats.js'
-import { RACE_BALANCE } from '../data/raceBalance.js'
 import { applyMiddleNaturalCondition } from './middleEvents.js'
 import { materializeOutcome, moveCondition, resolveEventChoice } from './eventResolver.js'
 import { randomChoice } from './eventScheduler.js'
@@ -13,7 +12,6 @@ import { HIGH_SCHOOL_YEAR2_EVENTS } from '../data/highSchoolYear2Events.js'
 import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../data/highSchoolYear2Races.js'
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
-const chanceFor = (score, bands) => bands.find(({ below }) => score < below).chance
 
 export function createHighSchoolState() {
   return { completedEventIds: [], pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, racePlan: null, pendingRunningStyleDecision: null, runningStyleDecisionResolved: false, debutStatus: 'PENDING', debutAttempts: 0, achievements: [] }
@@ -45,11 +43,9 @@ export function getHighSchoolRaceScore(career, raceId = 'debut') {
   return stamina * .30 + grit * .20 + speed * .20 + intelligence * .20 + power * .10
 }
 
-function createDebutRace(career, retry, rng) {
+function createDebutRace(career, retry) {
   const raceScore = getHighSchoolRaceScore(career)
-  const chance = clamp(chanceFor(raceScore, RACE_BALANCE.debutChanceBands) + (retry ? .10 : 0), 0, .93)
-  const won = rng() < chance
-  return { id: retry ? 'debut_retry' : 'debut', raceId: retry ? 'debut_retry' : 'debut', raceName: retry ? '데뷔 재도전' : '첫 데뷔전', raceType: 'DEBUT', distance: '데뷔전', attempt: retry ? 2 : 1, raceScore, chance, result: won ? 'SUCCESS' : 'FAILURE', finishPosition: won ? 1 : null, won, choices: [{ id: 'run', text: '데뷔전에 출전한다' }] }
+  return { id: retry ? 'debut_retry' : 'debut', raceId: retry ? 'debut_retry' : 'debut', raceName: retry ? '데뷔 재도전' : '첫 데뷔전', raceType: 'DEBUT', distance: '데뷔전', attempt: retry ? 2 : 1, raceScore, choices: [{ id: 'run', text: '데뷔전에 출전한다' }] }
 }
 
 function createG1Race(career) {
@@ -102,14 +98,6 @@ function routeForGrowthType(growthTypeId) {
   return { sprinter: 'SPRINT', miler: 'MILE', stayer: 'LONG' }[growthTypeId] ?? null
 }
 
-function resolveG1Race(race, rng) {
-  const chance = chanceFor(race.raceScore, RACE_BALANCE.g1WinChanceBands)
-  if (rng() < chance) return { ...race, chance, result: 'WIN', finishPosition: 1, won: true }
-  const roll = rng()
-  const finishPosition = roll < .46 ? (rng() < .5 ? 2 : 3) : roll < .80 ? 4 + Math.floor(rng() * 3) : 7 + Math.floor(rng() * 6)
-  return { ...race, chance, result: finishPosition <= 3 ? 'PLACE' : finishPosition <= 6 ? 'MIDFIELD' : 'LOW', finishPosition, won: false }
-}
-
 function applyChanges(career, changes, conditionDelta = 0) {
   const stats = { ...career.stats }
   for (const [id, amount] of Object.entries(changes)) stats[id] = clamp(stats[id] + amount, 0, MAX_STAT)
@@ -126,7 +114,7 @@ function applyRaceRewards(career, race) {
 }
 
 function writeRaceHistory(career, race) {
-  const entry = { raceId: race.raceId, raceName: race.raceName, raceType: race.raceType, grade: race.grade ?? race.raceType, turn: career.turnIndex + 1, periodLabel: career.currentTurnHistory.periodLabel, distance: race.distance, attempt: race.attempt, result: race.result, finishPosition: race.finishPosition, runningStyle: career.runningStyle, won: Boolean(race.won) }
+  const entry = { raceId: race.raceId, raceName: race.raceName, raceType: race.raceType, grade: race.grade ?? race.raceType, turn: career.turnIndex + 1, periodLabel: career.currentTurnHistory.periodLabel, distance: race.distance, attempt: race.attempt, result: race.result, finishPosition: race.finishPosition, finalPosition: race.finishPosition, runningStyle: career.runningStyle, raceSeed: race.raceSeed, startPosition: race.startPosition, earlyPosition: race.earlyPosition, middlePosition: race.middlePosition, finalCornerPosition: race.finalCornerPosition, finalStraightPosition: race.finalStraightPosition, won: Boolean(race.won) }
   career.currentTurnHistory.race = entry
   career.currentTurnHistory.races = [...(career.currentTurnHistory.races ?? []), entry]
 }
@@ -265,13 +253,22 @@ export function resolveHighSchoolRace(career, choiceId = 'run', rng = Math.rando
   const race = career.highSchoolState?.pendingRace
   if (!race || career.highSchoolState.pendingRaceResult) return career
   if (race.raceType === 'G1' && choiceId === 'decline') return { ...career, highSchoolState: { ...career.highSchoolState, pendingRaceResult: { ...race, result: 'DECLINED', finishPosition: null, won: false } } }
-  let result = race.raceType === 'G1' ? resolveG1Race(race, rng) : race
-  if (result.raceType === 'DEBUT') {
-    const minimumPosition = result.result === 'SUCCESS' ? 1 : 6
-    const maximumPosition = result.result === 'SUCCESS' ? 5 : 12
-    result = { ...result, finishPosition: minimumPosition + Math.floor(rng() * (maximumPosition - minimumPosition + 1)) }
+  const racePlan = createRacePlan({ race, stats: career.stats, condition: career.condition, runningStyle: career.runningStyle ?? 'SENKO', rng })
+  const finishPosition = racePlan.finalPosition
+  const isDebut = race.raceType === 'DEBUT'
+  const won = !isDebut && finishPosition === 1
+  const result = {
+    ...race,
+    raceSeed: racePlan.raceSeed,
+    finishPosition,
+    won,
+    result: isDebut ? (finishPosition <= 5 ? 'SUCCESS' : 'FAILURE') : won ? 'WIN' : finishPosition <= 3 ? 'PLACE' : finishPosition <= 6 ? 'MIDFIELD' : 'LOW',
+    startPosition: racePlan.checkpoints[0].position,
+    earlyPosition: racePlan.checkpoints[1].position,
+    middlePosition: racePlan.checkpoints[2].position,
+    finalCornerPosition: racePlan.checkpoints[3].position,
+    finalStraightPosition: racePlan.checkpoints[4].position,
   }
-  const racePlan = createRacePlan({ race: result, runningStyle: career.runningStyle ?? 'SENKO', rng })
   return { ...career, highSchoolState: { ...career.highSchoolState, pendingRaceResult: result, racePlan } }
 }
 

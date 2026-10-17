@@ -34,6 +34,8 @@ export default function RaceSequence({ plan, speed, onSpeedChange, onComplete })
     <section className="race-sequence" aria-live="polite">
       <header><div><p>RACE SEQUENCE</p><h2>{plan.raceName}</h2><small>{plan.distance} · 작전: {runningStyle?.label}</small></div><div className="speed-control" aria-label="레이스 속도">{[1, 2].map((value) => <button type="button" key={value} className={speed === value ? 'active' : ''} onClick={() => onSpeedChange(value)}>{value}x</button>)}</div></header>
       <div className="race-position"><strong>현재 {checkpoint.position}위</strong><span>/ {plan.fieldSize}명</span><em>{checkpoint.phaseLabel}</em></div>
+      {checkpoint.positionKeep && <p className="position-keep-status">POSITION KEEP · 포지션 유지 중</p>}
+      {checkpoint.positionKeepReleased && <p className="position-keep-status released">포지션 킵 해제</p>}
       <div className="turn-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={percentage}><span style={{ width: `${percentage}%` }} /></div>
       <div className="turn-progress-meta"><span>레이스 진행 중</span><strong>{percentage}%</strong></div>
       <p className="race-message">“{checkpoint.message}”</p>

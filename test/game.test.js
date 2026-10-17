@@ -29,6 +29,7 @@ import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, calculateH
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
 import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
 import { createRacePlan } from '../src/game/racePlan.js'
+import { calculateDistanceScore, calculatePositionKeepScore, calculateStaminaPenalty, calculateStyleFitScore, getPositionKeepRange, getRaceFieldStrength, simulateRace } from '../src/game/raceSimulation.js'
 import { HIGH_SCHOOL_YEAR2_EVENTS } from '../src/data/highSchoolYear2Events.js'
 import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../src/data/highSchoolYear2Races.js'
 
@@ -796,16 +797,21 @@ test('turn 13 resolves one running-style special after its regular event without
   assert.ok(advanceCareer(resolved, () => 0).highSchoolState.pendingEvent)
 })
 
-test('race plans preserve the pre-resolved result while showing each running style trajectory', () => {
-  const rng = seededRandom(77)
-  const race = { raceId: 'test-race', raceName: '테스트 레이스', distance: '1600m', finishPosition: 2 }
-  const expectations = { NIGE: [1, 3], SENKO: [2, 5], SASHI: [5, 9], OIKOMI: [8, 12] }
+test('race plans derive the result from position keep and the five simulation checkpoints', () => {
+  const stats = { speed: 60, stamina: 60, power: 60, grit: 60, intelligence: 60 }
+  const race = { raceId: 'test-race', raceName: '테스트 레이스', raceType: 'G1', distance: '1600m', finishPosition: 12, fieldStrength: 50 }
+  const expectations = { NIGE: [1, 2], SENKO: [3, 5], SASHI: [6, 9], OIKOMI: [10, 12] }
   for (const [runningStyle, [minimum, maximum]] of Object.entries(expectations)) {
-    const plan = createRacePlan({ race, runningStyle, rng })
-    assert.equal(plan.finalPosition, 2)
+    const plan = createRacePlan({ race, stats, condition: '보통', runningStyle, rng: seededRandom(77) })
     assert.equal(plan.checkpoints.length, 5)
     assert.ok(plan.checkpoints.every(({ position }) => position >= 1 && position <= 12))
     assert.ok(plan.checkpoints[0].position >= minimum && plan.checkpoints[0].position <= maximum)
+    assert.ok(plan.checkpoints[1].position >= minimum && plan.checkpoints[1].position <= maximum)
+    assert.ok(plan.checkpoints[0].positionKeep)
+    assert.ok(plan.checkpoints[1].positionKeep)
+    assert.equal(plan.checkpoints[2].positionKeep, false)
+    assert.equal(plan.finalPosition, plan.checkpoints.at(-1).position)
+    assert.notEqual(plan.finalPosition, race.finishPosition)
     assert.ok(plan.checkpoints.every(({ message }) => message.length > 0))
   }
 })
@@ -814,16 +820,90 @@ test('race result and its plan resolve once before the sequence can award reward
   const career = {
     ...endingCareer({ speed: 60, stamina: 50, power: 58, grit: 46, intelligence: 55 }, 'miler'),
     runningStyle: 'SENKO',
-    highSchoolState: { ...createHighSchoolState(), pendingRace: { raceId: 'debut', raceName: '첫 데뷔전', raceType: 'DEBUT', distance: '데뷔전', attempt: 1, result: 'SUCCESS', won: true } },
+    highSchoolState: { ...createHighSchoolState(), pendingRace: { raceId: 'debut', raceName: '첫 데뷔전', raceType: 'DEBUT', distance: '데뷔전', attempt: 1 } },
   }
   const resolved = resolveHighSchoolRace(career, 'run', () => 0.5)
   assert.ok(resolved.highSchoolState.racePlan)
   assert.ok(resolved.highSchoolState.pendingRaceResult.finishPosition >= 1 && resolved.highSchoolState.pendingRaceResult.finishPosition <= 5)
   assert.equal(resolved.highSchoolState.racePlan.finalPosition, resolved.highSchoolState.pendingRaceResult.finishPosition)
+  assert.equal(resolved.highSchoolState.pendingRaceResult.result, resolved.highSchoolState.pendingRaceResult.finishPosition <= 5 ? 'SUCCESS' : 'FAILURE')
+  assert.equal(resolved.highSchoolState.pendingRaceResult.startPosition, resolved.highSchoolState.racePlan.checkpoints[0].position)
+  assert.equal(resolved.highSchoolState.pendingRaceResult.finalStraightPosition, resolved.highSchoolState.racePlan.finalPosition)
   assert.strictEqual(resolveHighSchoolRace(resolved, 'run', () => 0), resolved)
   assert.strictEqual(finishHighSchoolRace(resolved, () => 0), resolved)
   const sequenceComplete = completeHighSchoolRaceSequence(resolved)
   assert.equal(sequenceComplete.highSchoolState.racePlan.completed, true)
+})
+
+test('race score helpers use the requested position, style, distance, and stamina formulas', () => {
+  const stats = { speed: 80, stamina: 40, power: 60, grit: 30, intelligence: 70 }
+  assert.equal(calculatePositionKeepScore(stats), 65)
+  assert.equal(calculateStyleFitScore(stats, 'NIGE'), 63)
+  assert.ok(Math.abs(calculateDistanceScore(stats, '1200m') - 65) < 0.0001)
+  assert.equal(calculateStaminaPenalty({ ...stats, stamina: 40 }, '3000m', 'MIDDLE'), 0)
+  assert.ok(Math.abs(calculateStaminaPenalty({ ...stats, stamina: 40 }, '3000m', 'FINAL_CORNER') - 2.7) < 0.0001)
+  assert.ok(Math.abs(calculateStaminaPenalty({ ...stats, stamina: 40 }, '3000m', 'FINAL_STRAIGHT') - 6.3) < 0.0001)
+  assert.deepEqual(getPositionKeepRange('NIGE', 12), [1, 2])
+  assert.deepEqual(getPositionKeepRange('SENKO', 12), [3, 5])
+  assert.deepEqual(getPositionKeepRange('SASHI', 12), [6, 9])
+  assert.deepEqual(getPositionKeepRange('OIKOMI', 12), [10, 12])
+  assert.equal(getRaceFieldStrength({ raceType: 'DEBUT', attempt: 2 }), getRaceFieldStrength({ raceType: 'DEBUT', attempt: 1 }) - 2)
+
+  const frontRunnerStats = { speed: 75, stamina: 72, power: 50, grit: 45, intelligence: 75 }
+  const closerStats = { speed: 50, stamina: 48, power: 75, grit: 72, intelligence: 75 }
+  assert.ok(calculateStyleFitScore(frontRunnerStats, 'NIGE') > calculateStyleFitScore(closerStats, 'NIGE'))
+  assert.ok(calculateStyleFitScore(closerStats, 'OIKOMI') > calculateStyleFitScore(frontRunnerStats, 'OIKOMI'))
+  assert.ok(calculateDistanceScore({ speed: 80, stamina: 40, power: 80, grit: 50, intelligence: 50 }, '1200m') > calculateDistanceScore({ speed: 50, stamina: 80, power: 50, grit: 50, intelligence: 50 }, '1200m'))
+  assert.ok(calculatePositionKeepScore({ ...stats, intelligence: 100 }) > calculatePositionKeepScore({ ...stats, intelligence: 20 }))
+})
+
+test('race simulation consumes the supplied RNG once and stores a reproducible seed', () => {
+  let calls = 0
+  const plan = simulateRace({
+    race: { raceId: 'seed-test', raceName: '시드 테스트', raceType: 'G1', distance: '1600m', fieldStrength: 50 },
+    stats: { speed: 60, stamina: 60, power: 60, grit: 60, intelligence: 60 },
+    condition: '보통',
+    runningStyle: 'SENKO',
+    rng: () => { calls += 1; return .375 },
+  })
+  assert.equal(calls, 1)
+  assert.equal(plan.raceSeed, 1610612736)
+  assert.deepEqual(plan, simulateRace({
+    race: { raceId: 'seed-test', raceName: '시드 테스트', raceType: 'G1', distance: '1600m', fieldStrength: 50 },
+    stats: { speed: 60, stamina: 60, power: 60, grit: 60, intelligence: 60 },
+    condition: '보통',
+    runningStyle: 'SENKO',
+    rng: () => .375,
+  }))
+})
+
+test('10,000 race simulations keep early positions bounded and make stamina matter at 3000m', () => {
+  const styles = ['NIGE', 'SENKO', 'SASHI', 'OIKOMI']
+  const stats = { speed: 60, stamina: 60, power: 60, grit: 60, intelligence: 60 }
+  const race = { raceId: 'kikuka_sho', raceName: '국화상', raceType: 'G1', distance: '3000m' }
+  const summaries = {}
+  for (const style of styles) summaries[style] = { wins: 0, positionTotal: 0 }
+  for (let index = 0; index < 10000; index += 1) {
+    const style = styles[index % styles.length]
+    const plan = simulateRace({ race, stats, condition: '보통', runningStyle: style, rng: seededRandom(index + 1000) })
+    const [minimum, maximum] = getPositionKeepRange(style, 12)
+    assert.ok(plan.checkpoints[0].position >= minimum && plan.checkpoints[0].position <= maximum)
+    assert.ok(plan.checkpoints[1].position >= minimum && plan.checkpoints[1].position <= maximum)
+    assert.equal(plan.finalPosition, plan.checkpoints[4].position)
+    summaries[style].wins += Number(plan.finalPosition === 1)
+    summaries[style].positionTotal += plan.finalPosition
+  }
+  assert.equal(Object.values(summaries).reduce((sum, value) => sum + value.positionTotal, 0) > 0, true)
+
+  const lowStamina = { speed: 60, stamina: 30, power: 60, grit: 60, intelligence: 60 }
+  const highStamina = { ...lowStamina, stamina: 70 }
+  let lowTotal = 0
+  let highTotal = 0
+  for (let index = 0; index < 2000; index += 1) {
+    lowTotal += simulateRace({ race, stats: lowStamina, condition: '보통', runningStyle: 'SENKO', rng: seededRandom(index + 20000) }).finalPosition
+    highTotal += simulateRace({ race, stats: highStamina, condition: '보통', runningStyle: 'SENKO', rng: seededRandom(index + 20000) }).finalPosition
+  }
+  assert.ok(highTotal < lowTotal)
 })
 
 test('non-racer ending resolver is deterministic, history-aware, and covers specialist and fallback paths', () => {

@@ -258,6 +258,8 @@ button { border: 0; }
 .race-position strong { color: var(--gold); font: 400 24px Georgia, serif; }
 .race-position span { color: var(--muted); font-size: 11px; }
 .race-position em { color: var(--violet-soft); font-size: 10px; font-style: normal; font-weight: 800; margin-left: auto; }
+.position-keep-status { color: var(--gold); font-size: 9px; font-weight: 900; letter-spacing: 0.08em; margin: 7px 0 0; }
+.position-keep-status.released { color: var(--violet-soft); }
 .race-sequence .turn-progress-track { margin-top: 14px; }
 .race-message { color: #eee7f1; font: 400 17px/1.6 Georgia, serif; margin: 21px auto 5px; min-height: 82px; text-align: center; }
 .outcome { color: var(--violet-soft); font-size: 19px; font-weight: 900; margin: 9px 0 8px; }

@@ -241,6 +241,7 @@ button { border: 0; }
 .running-style-heading em { color: var(--gold); font-size: 10px; font-style: normal; font-weight: 900; }
 .running-style-choices small { color: #c8c0cd; font-size: 11px; line-height: 1.45; }
 .running-style-choices b { color: var(--violet-soft); font-size: 10px; }
+.running-style-choices .recommendation-reason { border-top: 1px solid rgba(232, 202, 105, .2); color: var(--gold); margin-top: 2px; padding-top: 6px; }
 .running-style-choices button:active { background: #302938; border-color: var(--gold); }
 .season-status { background: rgba(232, 202, 105, 0.06); border-left: 2px solid var(--gold); display: grid; gap: 4px; margin-top: 10px; padding: 9px 10px; }
 .season-status > strong { color: var(--gold); font-size: 11px; margin-bottom: 2px; }

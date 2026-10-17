@@ -27,7 +27,7 @@ import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDuratio
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
 import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, calculateHighSchoolSpecialtyScore, calculateHighSchoolSpecialtyStat, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
-import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, createHighYear3State, dismissHighYear3Achievement, finishHighSchoolEvent, finishHighSchoolLegend, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, resolveHighYear3Special, resolveInitialTeamSelection, selectHighSchoolEventChoice, selectHighSchoolLegendChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
+import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, createHighYear3State, dismissHighYear3Achievement, finishHighSchoolEvent, finishHighSchoolLegend, finishHighSchoolRace, finishHighSchoolRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, resolveHighYear3Special, resolveInitialTeamSelection, selectHighSchoolEventChoice, selectHighSchoolLegendChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
 import { createRacePlan } from '../src/game/racePlan.js'
 import { calculateDistanceScore, calculatePositionKeepScore, calculateStaminaPenalty, calculateStyleFitScore, getPositionKeepRange, getRaceFieldStrength, simulateRace } from '../src/game/raceSimulation.js'
 import { HIGH_SCHOOL_YEAR2_EVENTS } from '../src/data/highSchoolYear2Events.js'
@@ -38,6 +38,8 @@ import { HIGH_SCHOOL_LEGEND_EVENTS } from '../src/data/highSchoolLegendEvents.js
 import { createHighSchoolLegendState, ensureHighSchoolLegendPlan, getHighLegendWeights, selectHighSchoolLegend } from '../src/game/highSchoolLegend.js'
 import { applyTeamTurnPlan, calculateTeamReputation, createInitialTeamOffers, createTeamState, createTeamTurnPlan, getEligibleTransferTeams, getTeamTrainingPoints, prepareTeamTransferCheckpoint, resolveInitialTeamOffer, resolveTeamTransferOffer } from '../src/game/highSchoolTeam.js'
 import { INITIAL_TEAM_IDS, TEAM_BY_ID } from '../src/data/highSchoolTeams.js'
+import { TURN13_STAT_NORMS } from '../src/data/runningStyleRecommendationBalance.js'
+import { normalizeTurn13Stats, recommendRunningStyle, safeZScore } from '../src/game/runningStyleRecommendation.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -838,7 +840,9 @@ test('turn 13 resolves one running-style special after its regular event without
   assert.ok(decision)
   assert.equal(afterEvent.highSchoolState.completedEventIds.length, 1)
   assert.equal(afterEvent.runningStyle, null)
-  assert.equal(getRecommendedRunningStyle({ speed: 50, stamina: 50, power: 50, grit: 50, intelligence: 50 }), 'NIGE')
+  assert.equal(Object.keys(decision.recommendationDebug.zScores).length, 5)
+  assert.ok(['FRONT', 'BACK'].includes(decision.recommendationDebug.group))
+  assert.strictEqual(finishHighSchoolEvent(afterEvent, () => 0.99), afterEvent)
 
   const selected = selectHighSchoolRunningStyle(afterEvent, 'OIKOMI')
   assert.equal(selected.highSchoolState.pendingRunningStyleDecision.selectedStyle, 'OIKOMI')
@@ -859,6 +863,31 @@ test('turn 13 resolves one running-style special after its regular event without
   assert.equal(resolved.history[0].teamTraining.points, 1)
   assert.strictEqual(finishHighSchoolRunningStyle(scouted, () => 0), scouted)
   assert.ok(advanceCareer(resolved, () => 0).highSchoolState.pendingEvent)
+})
+
+test('running-style recommendation uses cohort Z-scores and the two-stage style resolver', () => {
+  const statsFromZ = (zScores) => Object.fromEntries(Object.entries(TURN13_STAT_NORMS).map(([id, norm]) => [id, norm.mean + (zScores[id] ?? 0) * norm.sd]))
+  const resolve = (zScores, growthTypeId = 'router') => recommendRunningStyle(statsFromZ(zScores), growthTypeId, () => .25)
+
+  assert.equal(resolve({ speed: 1, intelligence: 1, power: -1 }).group, 'FRONT')
+  assert.equal(resolve({ speed: 1, power: 1, intelligence: -1 }).group, 'BACK')
+  assert.equal(resolve({ speed: 1, intelligence: 1, power: -1, stamina: 2 }).recommendation, 'NIGE')
+  assert.equal(resolve({ speed: 1, intelligence: 1.5, power: .5, stamina: -2 }).recommendation, 'SENKO')
+  assert.equal(resolve({ speed: 1, power: 1.5, intelligence: .5, grit: -2 }).recommendation, 'SASHI')
+  assert.equal(resolve({ speed: 1, power: 1.5, intelligence: -1, grit: 2 }).recommendation, 'OIKOMI')
+
+  assert.equal(safeZScore(10, 10, 0), 0)
+  assert.equal(safeZScore(10, 10, 1e-12), 0)
+  const extremes = normalizeTurn13Stats(statsFromZ({ speed: 10, stamina: -10 }))
+  assert.equal(extremes.speed, 2.5)
+  assert.equal(extremes.stamina, -2.5)
+
+  const norms = Object.fromEntries(Object.entries(TURN13_STAT_NORMS).map(([id, norm]) => [id, norm.mean]))
+  const first = recommendRunningStyle(norms, null, () => .25)
+  const second = recommendRunningStyle(norms, null, () => .75)
+  assert.equal(first.frontBackTieRoll, .25)
+  assert.equal(first.detailTieRoll, .25)
+  assert.notEqual(first.recommendation, second.recommendation)
 })
 
 test('race plans derive the result from position keep and the five simulation checkpoints', () => {

@@ -399,6 +399,7 @@ function RunningStyleModal({ decision, onSelect, onContinue }) {
               <span className="running-style-heading"><strong>{style.label}</strong>{style.id === recommendedStyle?.id && <em>★ 코치 추천</em>}</span>
               <small>{style.description}</small>
               <b>{style.abilities}</b>
+              {style.id === recommendedStyle?.id && decision.recommendationReason && <small className="recommendation-reason">추천 이유 · {decision.recommendationReason}</small>}
             </button>)}
           </div>
         </> : <div className="event-result">

@@ -6,7 +6,7 @@ import { randomChoice } from './eventScheduler.js'
 import { finalizeTurnHistory } from './history.js'
 import { beginTurnHistory } from './history.js'
 import { TURNS } from '../data/turns.js'
-import { getRunningStyle, RUNNING_STYLES } from '../data/runningStyles.js'
+import { getRunningStyle } from '../data/runningStyles.js'
 import { createRacePlan } from './racePlan.js'
 import { HIGH_SCHOOL_YEAR2_EVENTS } from '../data/highSchoolYear2Events.js'
 import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../data/highSchoolYear2Races.js'
@@ -14,6 +14,8 @@ import { HIGH_YEAR3_RACES } from '../data/highSchoolYear3Races.js'
 import { pickHighYear3Event } from '../data/highSchoolYear3Events.js'
 import { ensureHighSchoolLegendPlan, getHighSchoolLegendDue } from './highSchoolLegend.js'
 import { applyTeamTurnPlan, createInitialTeamOffers, resolveInitialTeamOffer } from './highSchoolTeam.js'
+import { RUNNING_STYLE_RECOMMENDATION_REASONS } from '../data/runningStyleRecommendationBalance.js'
+import { recommendRunningStyle } from './runningStyleRecommendation.js'
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
 
@@ -29,14 +31,8 @@ export function createHighYear3State() {
   return { started: false, pendingSpecial: null, actionQueue: [], raceResults: {}, decisions: {}, achievements: [], pendingAchievements: [], racesCompletedThisTurn: 0, penaltiesAppliedThisTurn: 0 }
 }
 
-export function getRecommendedRunningStyle(stats) {
-  const scores = {
-    NIGE: stats.speed * .35 + stats.stamina * .25 + stats.intelligence * .25 + stats.power * .10 + stats.grit * .05,
-    SENKO: stats.speed * .30 + stats.power * .25 + stats.intelligence * .25 + stats.stamina * .15 + stats.grit * .05,
-    SASHI: stats.power * .30 + stats.intelligence * .30 + stats.speed * .20 + stats.grit * .15 + stats.stamina * .05,
-    OIKOMI: stats.power * .25 + stats.grit * .25 + stats.intelligence * .30 + stats.speed * .15 + stats.stamina * .05,
-  }
-  return RUNNING_STYLES.reduce((recommended, style) => scores[style.id] > scores[recommended] ? style.id : recommended, 'NIGE')
+export function getRecommendedRunningStyle(stats, growthTypeId, rng = Math.random) {
+  return recommendRunningStyle(stats, growthTypeId, rng).recommendation
 }
 
 export function getHighSchoolRaceScore(career, raceId = 'debut') {
@@ -258,7 +254,8 @@ export function finishHighSchoolEvent(career, rng = Math.random) {
   if (turn >= 21 && turn <= 24) return beginYear3PostEvent(next, turn, rng)
   if (turn >= 17 && turn <= 20) return beginYear2PostEvent(next, turn, rng)
   if (turn === 13 && !next.highSchoolState.runningStyleDecisionResolved) {
-    return { ...next, highSchoolState: { ...next.highSchoolState, pendingRunningStyleDecision: { recommendedStyle: getRecommendedRunningStyle(next.stats), selectedStyle: null } } }
+    const recommendation = recommendRunningStyle(next.stats, next.growthType.id, rng)
+    return { ...next, highSchoolState: { ...next.highSchoolState, pendingRunningStyleDecision: { recommendedStyle: recommendation.recommendation, recommendationReason: RUNNING_STYLE_RECOMMENDATION_REASONS[recommendation.recommendation], recommendationDebug: recommendation, selectedStyle: null } } }
   }
   return race ? next : finalizeHighTurn(next, rng)
 }

@@ -115,7 +115,7 @@ export function simulateRace({ race, stats, condition = '보통', runningStyle =
   const distanceScore = calculateDistanceScore(stats, race.distance)
   const [keepMinimum, keepMaximum] = positionKeepRange
   const keepWidth = keepMaximum - keepMinimum
-  const startQuality = clamp((positionKeepScore + phaseNoise.START) / 120, 0, 1)
+  const startQuality = clamp((positionKeepScore + phaseNoise.START - 55) / 45, 0, 1)
   let position = clamp(Math.round(keepMaximum - startQuality * keepWidth), keepMinimum, keepMaximum)
   const positions = { START: position }
   const earlyControl = (positionKeepScore - fieldStrength) * .15 + phaseNoise.EARLY

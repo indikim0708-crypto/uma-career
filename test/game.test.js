@@ -894,6 +894,8 @@ test('10,000 race simulations keep early positions bounded and make stamina matt
     summaries[style].positionTotal += plan.finalPosition
   }
   assert.equal(Object.values(summaries).reduce((sum, value) => sum + value.positionTotal, 0) > 0, true)
+  const winCounts = Object.values(summaries).map(({ wins }) => wins)
+  assert.ok(Math.max(...winCounts) - Math.min(...winCounts) <= 125)
 
   const lowStamina = { speed: 60, stamina: 30, power: 60, grit: 60, intelligence: 60 }
   const highStamina = { ...lowStamina, stamina: 70 }

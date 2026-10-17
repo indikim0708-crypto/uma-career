@@ -242,6 +242,18 @@ button { border: 0; }
 .running-style-choices small { color: #c8c0cd; font-size: 11px; line-height: 1.45; }
 .running-style-choices b { color: var(--violet-soft); font-size: 10px; }
 .running-style-choices button:active { background: #302938; border-color: var(--gold); }
+.race-sequence { padding-top: 2px; }
+.race-sequence header { align-items: flex-start; display: flex; gap: 10px; justify-content: space-between; }
+.race-sequence header > div:first-child { min-width: 0; }
+.race-sequence header p { color: var(--gold); font-size: 10px; font-weight: 900; letter-spacing: 0.12em; margin: 0 0 5px; }
+.race-sequence h2 { font-size: 22px; overflow-wrap: anywhere; }
+.race-sequence header small { color: var(--muted); display: block; font-size: 11px; margin-top: 6px; }
+.race-position { align-items: baseline; background: rgba(155, 93, 229, 0.1); border: 1px solid rgba(155, 93, 229, 0.35); display: flex; gap: 5px; margin-top: 20px; padding: 12px; }
+.race-position strong { color: var(--gold); font: 400 24px Georgia, serif; }
+.race-position span { color: var(--muted); font-size: 11px; }
+.race-position em { color: var(--violet-soft); font-size: 10px; font-style: normal; font-weight: 800; margin-left: auto; }
+.race-sequence .turn-progress-track { margin-top: 14px; }
+.race-message { color: #eee7f1; font: 400 17px/1.6 Georgia, serif; margin: 21px auto 5px; min-height: 82px; text-align: center; }
 .outcome { color: var(--violet-soft); font-size: 19px; font-weight: 900; margin: 9px 0 8px; }
 .outcome-GREAT_SUCCESS { color: var(--gold); }
 .outcome-FAILURE { color: #ef8990; }

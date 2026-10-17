@@ -27,7 +27,8 @@ import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDuratio
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
 import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, calculateHighSchoolSpecialtyScore, calculateHighSchoolSpecialtyStat, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
-import { createHighSchoolState, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
+import { completeHighSchoolRaceSequence, createHighSchoolState, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
+import { createRacePlan } from '../src/game/racePlan.js'
 
 function seededRandom(seed) {
   let value = seed >>> 0
@@ -76,6 +77,7 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
     }
     if (career.highSchoolState?.pendingRace) {
       career = resolveHighSchoolRace(career, career.highSchoolState.pendingRace.choices[0].id, rng)
+      career = completeHighSchoolRaceSequence(career)
       career = finishHighSchoolRace(career, rng)
     }
   }
@@ -757,6 +759,36 @@ test('turn 13 resolves one running-style special after its regular event without
   assert.equal(resolved.history[1].recommendedRunningStyle, decision.recommendedStyle)
   assert.strictEqual(finishHighSchoolRunningStyle(resolved, () => 0), resolved)
   assert.ok(advanceCareer(resolved, () => 0).highSchoolState.pendingEvent)
+})
+
+test('race plans preserve the pre-resolved result while showing each running style trajectory', () => {
+  const rng = seededRandom(77)
+  const race = { raceId: 'test-race', raceName: '테스트 레이스', distance: '1600m', finishPosition: 2 }
+  const expectations = { NIGE: [1, 3], SENKO: [2, 5], SASHI: [5, 9], OIKOMI: [8, 12] }
+  for (const [runningStyle, [minimum, maximum]] of Object.entries(expectations)) {
+    const plan = createRacePlan({ race, runningStyle, rng })
+    assert.equal(plan.finalPosition, 2)
+    assert.equal(plan.checkpoints.length, 5)
+    assert.ok(plan.checkpoints.every(({ position }) => position >= 1 && position <= 12))
+    assert.ok(plan.checkpoints[0].position >= minimum && plan.checkpoints[0].position <= maximum)
+    assert.ok(plan.checkpoints.every(({ message }) => message.length > 0))
+  }
+})
+
+test('race result and its plan resolve once before the sequence can award rewards', () => {
+  const career = {
+    ...endingCareer({ speed: 60, stamina: 50, power: 58, grit: 46, intelligence: 55 }, 'miler'),
+    runningStyle: 'SENKO',
+    highSchoolState: { ...createHighSchoolState(), pendingRace: { raceId: 'debut', raceName: '첫 데뷔전', raceType: 'DEBUT', distance: '데뷔전', attempt: 1, result: 'SUCCESS', won: true } },
+  }
+  const resolved = resolveHighSchoolRace(career, 'run', () => 0.5)
+  assert.ok(resolved.highSchoolState.racePlan)
+  assert.ok(resolved.highSchoolState.pendingRaceResult.finishPosition >= 1 && resolved.highSchoolState.pendingRaceResult.finishPosition <= 5)
+  assert.equal(resolved.highSchoolState.racePlan.finalPosition, resolved.highSchoolState.pendingRaceResult.finishPosition)
+  assert.strictEqual(resolveHighSchoolRace(resolved, 'run', () => 0), resolved)
+  assert.strictEqual(finishHighSchoolRace(resolved, () => 0), resolved)
+  const sequenceComplete = completeHighSchoolRaceSequence(resolved)
+  assert.equal(sequenceComplete.highSchoolState.racePlan.completed, true)
 })
 
 test('non-racer ending resolver is deterministic, history-aware, and covers specialist and fallback paths', () => {

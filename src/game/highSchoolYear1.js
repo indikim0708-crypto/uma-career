@@ -8,12 +8,13 @@ import { finalizeTurnHistory } from './history.js'
 import { beginTurnHistory } from './history.js'
 import { TURNS } from '../data/turns.js'
 import { getRunningStyle, RUNNING_STYLES } from '../data/runningStyles.js'
+import { createRacePlan } from './racePlan.js'
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
 const chanceFor = (score, bands) => bands.find(({ below }) => score < below).chance
 
 export function createHighSchoolState() {
-  return { completedEventIds: [], pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, pendingRunningStyleDecision: null, runningStyleDecisionResolved: false, debutStatus: 'PENDING', debutAttempts: 0, achievements: [] }
+  return { completedEventIds: [], pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, racePlan: null, pendingRunningStyleDecision: null, runningStyleDecisionResolved: false, debutStatus: 'PENDING', debutAttempts: 0, achievements: [] }
 }
 
 export function getRecommendedRunningStyle(stats) {
@@ -75,14 +76,14 @@ function applyRaceRewards(career, race) {
 }
 
 function writeRaceHistory(career, race) {
-  career.currentTurnHistory.race = { raceId: race.raceId, raceName: race.raceName, raceType: race.raceType, turn: career.turnIndex + 1, periodLabel: career.currentTurnHistory.periodLabel, distance: race.distance, attempt: race.attempt, result: race.result, finishPosition: race.finishPosition, won: Boolean(race.won) }
+  career.currentTurnHistory.race = { raceId: race.raceId, raceName: race.raceName, raceType: race.raceType, turn: career.turnIndex + 1, periodLabel: career.currentTurnHistory.periodLabel, distance: race.distance, attempt: race.attempt, result: race.result, finishPosition: race.finishPosition, runningStyle: career.runningStyle, won: Boolean(race.won) }
 }
 
 function finalizeHighTurn(career, rng) {
   const next = finalizeTurnHistory(career, { expectedGrowth: career.currentTurnHistory.expectedGrowth, rng, preserveNaturalCondition: true })
   const failedDebut = next.highSchoolState.pendingRaceResult?.raceType === 'DEBUT' && next.highSchoolState.pendingRaceResult.result === 'FAILURE' && next.highSchoolState.pendingRaceResult.attempt === 2
   if (failedDebut) return { ...next, complete: true, badEnding: { id: 'failed_debut_bad_end', title: '끝내 넘지 못한 데뷔의 벽', body: '두 번째 데뷔전도 끝났다.\n\n마지막까지 최선을 다했지만 공식 레이서로 인정받기 위한 기록에는 도달하지 못했다.\n\n중앙 트레센 고등부까지 올라왔지만, 결국 공식 레이스의 출발선에는 서지 못했다.\n\n오랫동안 바라보았던 트랙을 뒤로하고 그녀의 선수 생활은 여기서 끝을 맺었다.' } }
-  return { ...next, turnIndex: career.turnIndex + 1, highSchoolState: { ...next.highSchoolState, pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null } }
+  return { ...next, turnIndex: career.turnIndex + 1, highSchoolState: { ...next.highSchoolState, pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, racePlan: null } }
 }
 
 export function startHighSchoolTurn(career, rng = Math.random) {
@@ -169,13 +170,26 @@ export function resolveHighSchoolRace(career, choiceId = 'run', rng = Math.rando
   const race = career.highSchoolState?.pendingRace
   if (!race || career.highSchoolState.pendingRaceResult) return career
   if (race.raceType === 'G1' && choiceId === 'decline') return { ...career, highSchoolState: { ...career.highSchoolState, pendingRaceResult: { ...race, result: 'DECLINED', finishPosition: null, won: false } } }
-  const result = race.raceType === 'G1' ? resolveG1Race(race, rng) : race
-  return { ...career, highSchoolState: { ...career.highSchoolState, pendingRaceResult: result } }
+  let result = race.raceType === 'G1' ? resolveG1Race(race, rng) : race
+  if (result.raceType === 'DEBUT') {
+    const minimumPosition = result.result === 'SUCCESS' ? 1 : 6
+    const maximumPosition = result.result === 'SUCCESS' ? 5 : 12
+    result = { ...result, finishPosition: minimumPosition + Math.floor(rng() * (maximumPosition - minimumPosition + 1)) }
+  }
+  const racePlan = createRacePlan({ race: result, runningStyle: career.runningStyle ?? 'SENKO', rng })
+  return { ...career, highSchoolState: { ...career.highSchoolState, pendingRaceResult: result, racePlan } }
+}
+
+export function completeHighSchoolRaceSequence(career) {
+  const racePlan = career.highSchoolState?.racePlan
+  if (!racePlan || racePlan.completed) return career
+  return { ...career, highSchoolState: { ...career.highSchoolState, racePlan: { ...racePlan, completed: true } } }
 }
 
 export function finishHighSchoolRace(career, rng = Math.random) {
   const race = career.highSchoolState?.pendingRaceResult
   if (!race) return career
+  if (race.result !== 'DECLINED' && !career.highSchoolState?.racePlan?.completed) return career
   let next = race.result === 'DECLINED' ? career : applyRaceRewards(career, race)
   next.currentTurnHistory = structuredClone(career.currentTurnHistory)
   writeRaceHistory(next, race)

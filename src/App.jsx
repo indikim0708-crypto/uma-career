@@ -17,7 +17,7 @@ import AdmissionProgress from './components/AdmissionProgress.jsx'
 import RaceSequence from './components/RaceSequence.jsx'
 import { createTurnProgressPlan } from './game/turnProgress.js'
 import { completeHighSchoolAdmissionSequence, completeNonRacerCareer, enterHighSchool } from './game/highSchoolAdmission.js'
-import { completeHighSchoolRaceSequence, dismissHighYear2Achievement, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from './game/highSchoolYear1.js'
+import { completeHighSchoolRaceSequence, dismissHighYear2Achievement, dismissHighYear3Achievement, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, resolveHighYear3Special, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from './game/highSchoolYear1.js'
 import { HIGH_YEAR2_RACES, HIGH_YEAR2_ROUTE_LABELS } from './data/highSchoolYear2Races.js'
 
 const SCREENS = {
@@ -239,7 +239,7 @@ function GrowthLog({ log, isLatest }) {
           <p>{race.result === 'WIN' ? '1위 · 우승' : race.result === 'SUCCESS' ? `${race.finishPosition}위 · 데뷔전 통과` : race.result === 'DECLINED' ? '출전을 보류했습니다.' : `${race.finishPosition ?? '-'}위`}</p>
         </section>)}
         {log.achievements?.map((achievement) => <section className="history-event achievement-history" key={achievement.id}><span>ACHIEVEMENT</span><h3>{achievement.name} 달성!</h3></section>)}
-        {log.special && <section className="history-event"><span>SPECIAL EVENT</span><h3>{log.special.title}</h3><p>「{log.special.selectedChoiceText}」</p></section>}
+        {(log.specials ?? (log.special ? [log.special] : [])).map((specialEvent, index) => <section className="history-event" key={`${specialEvent.id}-${index}`}><span>SPECIAL EVENT</span><h3>{specialEvent.title}</h3><p>「{specialEvent.selectedChoiceText}」</p></section>)}
         <footer>컨디션 <span>{log.conditionBefore}</span><b>→</b><strong>{log.conditionAfter}</strong></footer>
       </div>
     </details>
@@ -411,9 +411,17 @@ function Year2SpecialModal({ special, onSelect }) {
 }
 
 function Year2AchievementModal({ achievement, onContinue }) {
-  const classic = achievement.id === 'CLASSIC_TRIPLE_CROWN'
-  const races = classic ? '사츠키상, 일본 더비, 국화상.' : achievement.id === 'TRIPLE_TIARA' ? '벚꽃상, 오크스, 추화상.' : 'NHK 마일 컵, 마일 챔피언십.'
-  const description = classic || achievement.id === 'TRIPLE_TIARA' ? `${races} 세 개의 G1을 모두 제패했습니다.` : `${races} 두 개의 마일 G1을 모두 제패했습니다.`
+  const descriptions = {
+    CLASSIC_TRIPLE_CROWN: '사츠키상, 일본 더비, 국화상. 세 개의 G1을 모두 제패했습니다.',
+    TRIPLE_TIARA: '벚꽃상, 오크스, 추화상. 세 개의 G1을 모두 제패했습니다.',
+    MILE_STAR: 'NHK 마일 컵과 마일 챔피언십을 모두 제패했습니다.',
+    SPRINT_KING: '봄과 가을의 대표 단거리 G1을 모두 제패했습니다.',
+    MILE_DOMINATOR: '봄 마일 G1과 마일 챔피언십을 제패했습니다.',
+    TENNO_DOUBLE: '천황상(봄)과 천황상(가을)을 모두 제패했습니다.',
+    GRAND_PRIX_DOUBLE: '다카라즈카 기념과 아리마 기념을 모두 제패했습니다.',
+    AUTUMN_TRIPLE: '천황상(가을), 재팬 컵, 아리마 기념. 가을의 세 거대한 무대를 모두 제패했습니다.',
+  }
+  const description = descriptions[achievement.id]
   return <div className="event-backdrop" role="presentation"><section className="event-modal achievement-modal" role="dialog" aria-modal="true" aria-labelledby="year2-achievement-title"><p className="event-badge">SEASON ACHIEVEMENT</p><div className="achievement-mark" aria-hidden="true">★</div><h2 id="year2-achievement-title">{achievement.name} 달성!</h2><p className="event-situation">{description}</p><button className="primary-button event-continue" type="button" onClick={onContinue}><span>계속</span><span aria-hidden="true">→</span></button></section></div>
 }
 
@@ -464,7 +472,7 @@ function LegendEventModal({ event, outcome, onSelect, onContinue }) {
   )
 }
 
-function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, onProgressEventTrigger, onProgressLegendTrigger, onProgressComplete, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onAdmissionSequenceComplete, onHighAdmissionSequenceComplete, onHighAdmissionContinue, onDistanceChange, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue, onHighEventChoice, onHighEventContinue, onRunningStyleSelect, onRunningStyleContinue, onYear2SpecialSelect, onYear2AchievementContinue, onRaceSelect, onRaceSequenceComplete, onRaceContinue }) {
+function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, onProgressEventTrigger, onProgressLegendTrigger, onProgressComplete, onAdvance, onEventChoice, onEventContinue, onTransferDecision, onAdmissionContinue, onAdmissionSequenceComplete, onHighAdmissionSequenceComplete, onHighAdmissionContinue, onDistanceChange, onMiddleEventChoice, onMiddleEventContinue, onLegendSelect, onLegendContinue, onHighEventChoice, onHighEventContinue, onRunningStyleSelect, onRunningStyleContinue, onYear2SpecialSelect, onYear3SpecialSelect, onYear2AchievementContinue, onYear3AchievementContinue, onRaceSelect, onRaceSequenceComplete, onRaceContinue }) {
   const currentTurn = TURNS[career.turnIndex]
   const middleSchool = currentTurn.stage === '중등부' ? getMiddleSchoolById(career.middleState.schoolId) : null
   const summaryLocation = middleSchool?.location ?? career.region.name
@@ -477,9 +485,11 @@ function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, o
   const highEventOpen = Boolean(turnProgress?.eventTriggered && !turnProgress.eventResolved && career.highSchoolState?.pendingEvent)
   const runningStyleOpen = Boolean(turnProgress?.eventResolved && career.highSchoolState?.pendingRunningStyleDecision)
   const year2SpecialOpen = Boolean(turnProgress?.legendTriggered && !turnProgress.legendResolved && career.highYear2?.pendingSpecial && !career.highSchoolState?.pendingRace)
+  const year3SpecialOpen = Boolean(turnProgress?.legendTriggered && !turnProgress.legendResolved && career.highYear3?.pendingSpecial && !career.highSchoolState?.pendingRace)
   const raceOpen = Boolean(turnProgress?.legendTriggered && !turnProgress.legendResolved && career.highSchoolState?.pendingRace)
   const year2AchievementOpen = Boolean(turnProgress?.legendTriggered && !turnProgress.legendResolved && career.highYear2?.pendingAchievement && !career.highSchoolState?.pendingRace && !career.highYear2?.pendingSpecial)
-  const progressPaused = elementaryEventOpen || middleEventOpen || legendOpen || highEventOpen || runningStyleOpen || year2SpecialOpen || raceOpen || year2AchievementOpen
+  const year3AchievementOpen = Boolean(turnProgress?.legendTriggered && !turnProgress.legendResolved && career.highYear3?.pendingAchievements?.length && !career.highSchoolState?.pendingRace && !career.highYear3?.pendingSpecial)
+  const progressPaused = elementaryEventOpen || middleEventOpen || legendOpen || highEventOpen || runningStyleOpen || year2SpecialOpen || year3SpecialOpen || raceOpen || year2AchievementOpen || year3AchievementOpen
 
   return (
     <main className="game-page page-shell">
@@ -524,8 +534,10 @@ function Playing({ career, turnProgress, progressSpeed, onProgressSpeedChange, o
       {highEventOpen && <EventModal event={career.highSchoolState.pendingEvent} outcome={career.highSchoolState.pendingOutcome} onSelect={onHighEventChoice} onContinue={onHighEventContinue} />}
       {runningStyleOpen && <RunningStyleModal decision={career.highSchoolState.pendingRunningStyleDecision} onSelect={onRunningStyleSelect} onContinue={onRunningStyleContinue} />}
       {year2SpecialOpen && <Year2SpecialModal special={career.highYear2.pendingSpecial} onSelect={onYear2SpecialSelect} />}
+      {year3SpecialOpen && <Year2SpecialModal special={career.highYear3.pendingSpecial} onSelect={onYear3SpecialSelect} />}
       {raceOpen && <RaceModal race={career.highSchoolState.pendingRace} result={career.highSchoolState.pendingRaceResult} racePlan={career.highSchoolState.racePlan} speed={progressSpeed} onSpeedChange={onProgressSpeedChange} onSelect={onRaceSelect} onSequenceComplete={onRaceSequenceComplete} onContinue={onRaceContinue} />}
       {year2AchievementOpen && <Year2AchievementModal achievement={career.highYear2.pendingAchievement} onContinue={onYear2AchievementContinue} />}
+      {year3AchievementOpen && <Year2AchievementModal achievement={career.highYear3.pendingAchievements[0]} onContinue={onYear3AchievementContinue} />}
     </main>
   )
 }
@@ -550,6 +562,9 @@ function Complete({ career, onRestart }) {
       </main>
     )
   }
+  const g1Races = (career.history ?? []).flatMap((log) => log.races ?? (log.race ? [log.race] : [])).filter((race) => race.grade === 'G1' || race.raceType === 'G1')
+  const g1Wins = g1Races.filter(({ won }) => won)
+  const achievements = [...(career.highYear2?.achievements ?? []), ...(career.highYear3?.achievements ?? [])]
   return (
     <main className="result-page page-shell">
       <header className="topbar"><Brand /><span className="phase-label">FINAL REPORT</span></header>
@@ -566,6 +581,8 @@ function Complete({ career, onRestart }) {
             <div><dt>출신</dt><dd>{career.region.name}</dd></div>
             <div><dt>초등학교</dt><dd>{career.school.name}</dd></div>
             <div><dt>성장 타입</dt><dd>{career.growthType.name}</dd></div>
+            <div><dt>주행 스타일</dt><dd>{getRunningStyle(career.runningStyle)?.label ?? '-'}</dd></div>
+            <div><dt>G1 출전 / 우승</dt><dd>{g1Races.length}회 / {g1Wins.length}회</dd></div>
             <div><dt>최종 컨디션</dt><dd>{career.condition}</dd></div>
           </dl>
         </section>
@@ -582,7 +599,8 @@ function Complete({ career, onRestart }) {
             <div><span>안정성</span><strong>{career.stability}</strong><small>/ 100</small></div>
           </div>
         </section>
-        {career.highYear2?.achievements?.length > 0 && <section className="panel achievement-panel"><p className="section-kicker">ACHIEVEMENTS</p><h2>시즌 업적</h2>{career.highYear2.achievements.map((achievement) => <p key={achievement.id}>★ {achievement.name}</p>)}</section>}
+        {g1Wins.length > 0 && <section className="panel achievement-panel"><p className="section-kicker">MAJOR WINS</p><h2>주요 우승 레이스</h2>{g1Wins.map((race) => <p key={`${race.turn}-${race.raceId}`}>◆ {race.raceName}</p>)}</section>}
+        {achievements.length > 0 && <section className="panel achievement-panel"><p className="section-kicker">ACHIEVEMENTS</p><h2>시즌 업적</h2>{achievements.map((achievement) => <p key={achievement.id}>★ {achievement.name}</p>)}</section>}
       </div>
       <button className="primary-button restart-button" type="button" onClick={onRestart}><span>다시 시작하기</span><span aria-hidden="true">↻</span></button>
     </main>
@@ -704,18 +722,32 @@ function App() {
     const postTurnPending = Boolean(next.highYear2?.pendingSpecial || next.highSchoolState?.pendingRace)
     setTurnProgress((current) => current ? { ...current, legendResolved: !postTurnPending } : current)
   }
+  const handleYear3SpecialSelect = (choiceId) => {
+    const next = resolveHighYear3Special(career, choiceId)
+    setCareer(next)
+    const postTurnPending = Boolean(next.highYear3?.pendingSpecial || next.highSchoolState?.pendingRace || next.highYear3?.pendingAchievements?.length)
+    setTurnProgress((current) => current ? { ...current, legendResolved: !postTurnPending } : current)
+    if (next.complete) setScreen(SCREENS.RESULT)
+  }
   const handleRaceSelect = (choiceId) => setCareer((current) => resolveHighSchoolRace(current, choiceId))
   const handleRaceSequenceComplete = () => setCareer((current) => completeHighSchoolRaceSequence(current))
   const handleRaceContinue = () => {
     const next = finishHighSchoolRace(career)
     setCareer(next)
-    const postTurnPending = Boolean(next.highYear2?.pendingSpecial || next.highSchoolState?.pendingRace || next.highYear2?.pendingAchievement)
+    const postTurnPending = Boolean(next.highYear2?.pendingSpecial || next.highYear3?.pendingSpecial || next.highSchoolState?.pendingRace || next.highYear2?.pendingAchievement || next.highYear3?.pendingAchievements?.length)
     setTurnProgress((current) => current ? { ...current, legendResolved: !postTurnPending } : current)
     if (next.complete) setScreen(SCREENS.RESULT)
   }
   const handleYear2AchievementContinue = () => {
     setCareer((current) => dismissHighYear2Achievement(current))
     setTurnProgress((current) => current ? { ...current, legendResolved: true } : current)
+  }
+  const handleYear3AchievementContinue = () => {
+    const next = dismissHighYear3Achievement(career)
+    setCareer(next)
+    const postTurnPending = Boolean(next.highYear3?.pendingSpecial || next.highSchoolState?.pendingRace || next.highYear3?.pendingAchievements?.length)
+    setTurnProgress((current) => current ? { ...current, legendResolved: !postTurnPending } : current)
+    if (next.complete) setScreen(SCREENS.RESULT)
   }
 
   const triggerProgressEvent = () => setTurnProgress((current) => current ? { ...current, eventTriggered: true } : current)
@@ -726,7 +758,7 @@ function App() {
   if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onRandomName={randomizeName} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
   if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => setCareer((current) => rerollCareer(current))} onConfirm={() => setScreen(SCREENS.GROWTH_PLAN)} onBack={() => setScreen(SCREENS.NAME_ENTRY)} />
   if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={setSelectedType} onBegin={beginCareer} onBack={() => setScreen(SCREENS.ORIGIN)} />
-  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onAdmissionSequenceComplete={handleAdmissionSequenceComplete} onHighAdmissionSequenceComplete={handleHighAdmissionSequenceComplete} onHighAdmissionContinue={handleHighAdmissionContinue} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} onHighEventChoice={handleHighEventChoice} onHighEventContinue={handleHighEventContinue} onRunningStyleSelect={handleRunningStyleSelect} onRunningStyleContinue={handleRunningStyleContinue} onYear2SpecialSelect={handleYear2SpecialSelect} onYear2AchievementContinue={handleYear2AchievementContinue} onRaceSelect={handleRaceSelect} onRaceSequenceComplete={handleRaceSequenceComplete} onRaceContinue={handleRaceContinue} />
+  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onAdmissionContinue={handleAdmissionContinue} onAdmissionSequenceComplete={handleAdmissionSequenceComplete} onHighAdmissionSequenceComplete={handleHighAdmissionSequenceComplete} onHighAdmissionContinue={handleHighAdmissionContinue} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} onHighEventChoice={handleHighEventChoice} onHighEventContinue={handleHighEventContinue} onRunningStyleSelect={handleRunningStyleSelect} onRunningStyleContinue={handleRunningStyleContinue} onYear2SpecialSelect={handleYear2SpecialSelect} onYear3SpecialSelect={handleYear3SpecialSelect} onYear2AchievementContinue={handleYear2AchievementContinue} onYear3AchievementContinue={handleYear3AchievementContinue} onRaceSelect={handleRaceSelect} onRaceSequenceComplete={handleRaceSequenceComplete} onRaceContinue={handleRaceContinue} />
   if (screen === 'ANOTHER_PATH') return <AnotherPath onComplete={() => setScreen(SCREENS.RESULT)} />
   if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
   return <Intro onStart={startNewCareer} />

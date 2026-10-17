@@ -10,6 +10,8 @@ import { getRunningStyle, RUNNING_STYLES } from '../data/runningStyles.js'
 import { createRacePlan } from './racePlan.js'
 import { HIGH_SCHOOL_YEAR2_EVENTS } from '../data/highSchoolYear2Events.js'
 import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../data/highSchoolYear2Races.js'
+import { HIGH_YEAR3_RACES } from '../data/highSchoolYear3Races.js'
+import { pickHighYear3Event } from '../data/highSchoolYear3Events.js'
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
 
@@ -19,6 +21,10 @@ export function createHighSchoolState() {
 
 export function createHighYear2State() {
   return { route: null, derbyDecisionResolved: false, enteredJapanDerby: false, pendingSpecial: null, pendingAchievement: null, raceQueue: [], racesCompletedThisTurn: 0, consecutivePenaltyApplied: false, raceResults: {}, achievements: [] }
+}
+
+export function createHighYear3State() {
+  return { started: false, pendingSpecial: null, actionQueue: [], raceResults: {}, decisions: {}, achievements: [], pendingAchievements: [], racesCompletedThisTurn: 0, penaltiesAppliedThisTurn: 0 }
 }
 
 export function getRecommendedRunningStyle(stats) {
@@ -56,6 +62,11 @@ function createG1Race(career) {
 
 function createYear2Race(career, raceId) {
   const race = HIGH_YEAR2_RACES[raceId]
+  return { ...race, id: race.raceId, raceType: 'G1', attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), choices: [{ id: 'enter', text: `${race.raceName}에 출전한다` }] }
+}
+
+function createYear3Race(career, raceId) {
+  const race = HIGH_YEAR3_RACES[raceId]
   return { ...race, id: race.raceId, raceType: 'G1', attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), choices: [{ id: 'enter', text: `${race.raceName}에 출전한다` }] }
 }
 
@@ -123,20 +134,25 @@ function finalizeHighTurn(career, rng) {
   const next = finalizeTurnHistory(career, { expectedGrowth: career.currentTurnHistory.expectedGrowth, rng, preserveNaturalCondition: true })
   const failedDebut = next.highSchoolState.pendingRaceResult?.raceType === 'DEBUT' && next.highSchoolState.pendingRaceResult.result === 'FAILURE' && next.highSchoolState.pendingRaceResult.attempt === 2
   if (failedDebut) return { ...next, complete: true, badEnding: { id: 'failed_debut_bad_end', title: '끝내 넘지 못한 데뷔의 벽', body: '두 번째 데뷔전도 끝났다.\n\n마지막까지 최선을 다했지만 공식 레이서로 인정받기 위한 기록에는 도달하지 못했다.\n\n중앙 트레센 고등부까지 올라왔지만, 결국 공식 레이스의 출발선에는 서지 못했다.\n\n오랫동안 바라보았던 트랙을 뒤로하고 그녀의 선수 생활은 여기서 끝을 맺었다.' } }
-  return { ...next, turnIndex: career.turnIndex + 1, highSchoolState: { ...next.highSchoolState, pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, racePlan: null } }
+  const finishedCareer = career.turnIndex === TURNS.length - 1
+  return { ...next, turnIndex: finishedCareer ? career.turnIndex : career.turnIndex + 1, complete: finishedCareer, notice: finishedCareer ? '중앙 트레센 학원 고등부를 졸업했습니다.' : next.notice, highSchoolState: { ...next.highSchoolState, pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, racePlan: null } }
 }
 
 export function startHighSchoolTurn(career, rng = Math.random) {
-  if (career.highSchoolState?.pendingEvent || career.highSchoolState?.pendingRace || career.highSchoolState?.pendingRunningStyleDecision || career.highYear2?.pendingSpecial) return career
+  if (career.highSchoolState?.pendingEvent || career.highSchoolState?.pendingRace || career.highSchoolState?.pendingRunningStyleDecision || career.highYear2?.pendingSpecial || career.highYear3?.pendingSpecial) return career
   if (career.turnIndex === 13 && !career.runningStyle) return career
   const withYear2 = career.turnIndex >= 16 && !career.highYear2 ? { ...career, highYear2: createHighYear2State() } : career
-  const conditioned = applyMiddleNaturalCondition(withYear2, rng)
+  const initialized = career.turnIndex >= 20 && !withYear2.highYear3 ? { ...withYear2, highYear3: createHighYear3State() } : withYear2
+  const conditioned = applyMiddleNaturalCondition(initialized, rng)
   const { stats, expectedGrowth } = (awaitableApplyBaseGrowth(conditioned, rng))
-  const currentTurnHistory = beginTurnHistory(withYear2, TURNS[career.turnIndex])
+  const currentTurnHistory = beginTurnHistory(initialized, TURNS[career.turnIndex])
   currentTurnHistory.naturalConditionDelta = conditioned.naturalConditionDelta
   if (career.turnIndex >= 16) currentTurnHistory.seasonRoute = withYear2.highYear2?.route ?? null
-  const eventPool = career.turnIndex >= 16 ? HIGH_SCHOOL_YEAR2_EVENTS : HIGH_SCHOOL_YEAR1_EVENTS
-  return { ...conditioned, stats, currentTurnHistory: { ...currentTurnHistory, statsAfterBase: { ...stats }, expectedGrowth }, highSchoolState: { ...conditioned.highSchoolState, pendingEvent: randomChoice(eventPool.filter(({ id }) => !conditioned.highSchoolState.completedEventIds.includes(id)), rng), pendingOutcome: null } }
+  const event = career.turnIndex >= 20
+    ? pickHighYear3Event(conditioned, career.turnIndex + 1, rng)
+    : randomChoice((career.turnIndex >= 16 ? HIGH_SCHOOL_YEAR2_EVENTS : HIGH_SCHOOL_YEAR1_EVENTS).filter(({ id }) => !conditioned.highSchoolState.completedEventIds.includes(id)), rng)
+  const highYear3 = initialized.highYear3 ? { ...initialized.highYear3, racesCompletedThisTurn: 0, penaltiesAppliedThisTurn: 0, actionQueue: [], pendingSpecial: null, pendingAchievements: [] } : initialized.highYear3
+  return { ...conditioned, highYear3, stats, currentTurnHistory: { ...currentTurnHistory, statsAfterBase: { ...stats }, expectedGrowth }, highSchoolState: { ...conditioned.highSchoolState, pendingEvent: event, pendingOutcome: null } }
 }
 
 // Avoid a circular import while sharing the existing base-growth rule.
@@ -174,6 +190,54 @@ function beginYear2PostEvent(career, turn, rng) {
   return finalizeHighTurn(career, rng)
 }
 
+const special = (id, title, description, choices) => ({ id, title, description, choices: choices.map(([choiceId, text]) => ({ id: choiceId, text })) })
+const YEAR3_SPECIALS = {
+  spring_first_g1: () => special('high3_spring_first_g1', '봄 첫 G1', '시니어 시즌의 첫 목표를 결정할 시간입니다.', [['OSAKA', '오사카배에 도전한다'], ['PREPARE', '천황상(봄)을 준비한다']]),
+  sprint_mile: () => special('high3_sprint_mile', '1600m까지 영역을 넓힐 것인가?', '봄의 마일 G1에 도전할지 결정합니다.', [['YES', '야스다 기념에 도전한다'], ['NO', '단거리 노선에 집중한다']]),
+  spring_mile: () => special('high3_spring_mile', '봄 마일 왕좌', '봄의 두 마일 G1 중 목표를 선택합니다.', [['VICTORIA', '빅토리아 마일에 출전한다'], ['YASUDA', '야스다 기념에 출전한다'], ['BOTH', '두 경기 모두 도전한다']]),
+  spring_grand_prix: () => special('high3_spring_grand_prix', '봄의 그랑프리', '천황상(봄)을 마친 뒤 다카라즈카 기념까지 달릴 수 있습니다.', [['YES', '다카라즈카 기념까지 도전한다'], ['NO', '가을 시즌을 준비한다']]),
+  autumn_2000: () => special('high3_autumn_2000', '가을의 2000m', '마일 챔피언십 전에 천황상(가을)에 도전할지 결정합니다.', [['YES', '천황상(가을)에 도전한다'], ['NO', '마일 챔피언십에 집중한다']]),
+  mile_wall: () => special('high3_mile_wall', '마일의 벽을 넘어', '단거리에서 쌓은 속도로 마일의 왕좌에 도전할 수 있습니다.', [['YES', '마일 챔피언십에 도전한다'], ['NO', '단거리 선수로 시즌을 마무리한다']]),
+  longer_stage: () => special('high3_longer_stage', '더 긴 무대로', '마일 왕좌를 지나 더 긴 무대에 도전할지 결정합니다.', [['JAPAN_CUP', '재팬 컵에 도전한다'], ['SAVE_ARIMA', '아리마 기념까지 힘을 아낀다'], ['END', '올해는 여기까지 달린다']]),
+  autumn_tenno: (career) => special('high3_autumn_tenno', career.growthType.id === 'stayer' ? '가을의 천황상' : '천황상(가을)', '가을 왕도의 첫 무대에 출전할지 결정합니다.', [['YES', '천황상(가을)에 출전한다'], ['NO', career.growthType.id === 'stayer' ? '더 긴 무대를 준비한다' : '재팬 컵을 준비한다']]),
+  world_stage: (career) => special('high3_world_stage', career.growthType.id === 'stayer' ? '재팬 컵' : '세계가 기다리는 무대', '세계의 강자들이 모이는 2400m 무대입니다.', [['YES', '재팬 컵에 출전한다'], ['NO', '아리마 기념을 준비한다']]),
+  final_stage: () => special('high3_final_stage', '마지막 무대', '학생으로서 달릴 수 있는 마지막 G1, 아리마 기념에 도전하시겠습니까?', [['YES', '아리마 기념에 도전한다'], ['NO', '여기서 시즌을 마친다']]),
+}
+
+function lastSeasonSpecial(career) {
+  const recommendations = {
+    sprinter: '다카마쓰노미야 기념 · 스프린터즈 스테이크스',
+    miler: '빅토리아 마일 / 야스다 기념 · 마일 챔피언십',
+    router: '오사카배 · 다카라즈카 기념 · 가을 왕도 G1',
+    stayer: '천황상(봄) · 재팬 컵 · 아리마 기념',
+  }
+  return special('high3_last_season_guide', '마지막 시즌', `졸업까지 앞으로 1년. 코치가 시니어 시즌의 G1 일정을 펼쳤습니다. 추천 목표: ${recommendations[career.growthType.id]}`, [['START', '시니어 시즌을 시작한다']])
+}
+
+function queueYear3Actions(career, actions) {
+  return { ...career, highYear3: { ...career.highYear3, actionQueue: [...career.highYear3.actionQueue, ...actions] } }
+}
+
+function scheduleNextYear3Action(career, rng) {
+  if (career.highYear3.pendingAchievements.length) return career
+  const [action, ...actionQueue] = career.highYear3.actionQueue
+  if (!action) return finalizeHighTurn(career, rng)
+  const base = { ...career, highYear3: { ...career.highYear3, actionQueue } }
+  if (action.type === 'RACE') return { ...base, highSchoolState: { ...base.highSchoolState, pendingRace: createYear3Race(base, action.raceId), pendingRaceResult: null, racePlan: null } }
+  return { ...base, highYear3: { ...base.highYear3, pendingSpecial: YEAR3_SPECIALS[action.specialId](base) } }
+}
+
+function beginYear3PostEvent(career, turn, rng) {
+  const type = career.growthType.id
+  let actions = []
+  if (turn === 21) actions = [{ type: 'GUIDE' }]
+  if (turn === 22) actions = type === 'sprinter' ? [{ type: 'SPECIAL', specialId: 'sprint_mile' }] : type === 'miler' ? [{ type: 'SPECIAL', specialId: 'spring_mile' }] : type === 'router' ? [{ type: 'RACE', raceId: 'takarazuka_kinen' }] : [{ type: 'RACE', raceId: 'tenno_sho_spring' }, { type: 'SPECIAL', specialId: 'spring_grand_prix' }]
+  if (turn === 23 && type === 'sprinter') actions = [{ type: 'RACE', raceId: 'sprinters_stakes' }]
+  if (turn === 24) actions = type === 'sprinter' ? [{ type: 'SPECIAL', specialId: 'mile_wall' }] : type === 'miler' ? [{ type: 'SPECIAL', specialId: 'autumn_2000' }] : [{ type: 'SPECIAL', specialId: 'autumn_tenno' }]
+  if (actions[0]?.type === 'GUIDE') return { ...career, highYear3: { ...career.highYear3, started: false, pendingSpecial: lastSeasonSpecial(career) } }
+  return scheduleNextYear3Action(queueYear3Actions(career, actions), rng)
+}
+
 export function finishHighSchoolEvent(career, rng = Math.random) {
   const { pendingEvent: event, pendingOutcome: outcome } = career.highSchoolState
   if (!event || !outcome) return career
@@ -185,6 +249,7 @@ export function finishHighSchoolEvent(career, rng = Math.random) {
   const retry = turn === 15 && next.highSchoolState.debutStatus === 'FAILED_ONCE'
   const race = turn === 14 ? createDebutRace(next, false, rng) : retry ? createDebutRace(next, true, rng) : turn === 16 && next.highSchoolState.debutStatus === 'SUCCESS' && next.growthType.id !== 'sprinter' ? createG1Race(next) : null
   next = { ...next, highSchoolState: { ...next.highSchoolState, completedEventIds: [...next.highSchoolState.completedEventIds, event.id], pendingEvent: null, pendingOutcome: null, pendingRace: race } }
+  if (turn >= 21 && turn <= 24) return beginYear3PostEvent(next, turn, rng)
   if (turn >= 17 && turn <= 20) return beginYear2PostEvent(next, turn, rng)
   if (turn === 13 && !next.highSchoolState.runningStyleDecisionResolved) {
     return { ...next, highSchoolState: { ...next.highSchoolState, pendingRunningStyleDecision: { recommendedStyle: getRecommendedRunningStyle(next.stats), selectedStyle: null } } }
@@ -213,6 +278,44 @@ export function resolveHighYear2Special(career, choiceId, rng = Math.random) {
     return entered ? queueYear2Races(next, ['japan_derby'], false) : finalizeHighTurn(next, rng)
   }
   return career
+}
+
+export function resolveHighYear3Special(career, choiceId, rng = Math.random) {
+  const pending = career.highYear3?.pendingSpecial
+  const choice = pending?.choices.find(({ id }) => id === choiceId)
+  if (!pending || !choice) return career
+  let next = structuredClone(career)
+  next.highYear3.pendingSpecial = null
+  next.highYear3.decisions[pending.id] = choiceId
+  const entry = { id: pending.id, title: pending.title, selectedChoiceId: choiceId, selectedChoiceText: choice.text }
+  next.currentTurnHistory.special = entry
+  next.currentTurnHistory.specials = [...(next.currentTurnHistory.specials ?? []), entry]
+  const append = (actions) => { next = queueYear3Actions(next, actions) }
+
+  if (pending.id === 'high3_last_season_guide') {
+    next.highYear3.started = true
+    const type = next.growthType.id
+    if (type === 'sprinter') append([{ type: 'RACE', raceId: 'takamatsunomiya_kinen' }])
+    if (type === 'router') append([{ type: 'RACE', raceId: 'osaka_hai' }])
+    if (type === 'stayer') append([{ type: 'SPECIAL', specialId: 'spring_first_g1' }])
+  }
+  if (pending.id === 'high3_spring_first_g1' && choiceId === 'OSAKA') append([{ type: 'RACE', raceId: 'osaka_hai' }])
+  if (pending.id === 'high3_sprint_mile' && choiceId === 'YES') append([{ type: 'RACE', raceId: 'yasuda_kinen' }])
+  if (pending.id === 'high3_spring_mile') {
+    if (choiceId === 'VICTORIA' || choiceId === 'BOTH') append([{ type: 'RACE', raceId: 'victoria_mile' }])
+    if (choiceId === 'YASUDA' || choiceId === 'BOTH') append([{ type: 'RACE', raceId: 'yasuda_kinen' }])
+  }
+  if (pending.id === 'high3_spring_grand_prix' && choiceId === 'YES') append([{ type: 'RACE', raceId: 'takarazuka_kinen' }])
+  if (pending.id === 'high3_mile_wall') append([...(choiceId === 'YES' ? [{ type: 'RACE', raceId: 'mile_championship' }] : []), { type: 'SPECIAL', specialId: 'final_stage' }])
+  if (pending.id === 'high3_autumn_2000') append([...(choiceId === 'YES' ? [{ type: 'RACE', raceId: 'tenno_sho_autumn' }] : []), { type: 'RACE', raceId: 'mile_championship' }, { type: 'SPECIAL', specialId: 'longer_stage' }])
+  if (pending.id === 'high3_longer_stage') {
+    if (choiceId === 'JAPAN_CUP') append([{ type: 'RACE', raceId: 'japan_cup' }, { type: 'SPECIAL', specialId: 'final_stage' }])
+    if (choiceId === 'SAVE_ARIMA') append([{ type: 'SPECIAL', specialId: 'final_stage' }])
+  }
+  if (pending.id === 'high3_autumn_tenno') append([...(choiceId === 'YES' ? [{ type: 'RACE', raceId: 'tenno_sho_autumn' }] : []), { type: 'SPECIAL', specialId: 'world_stage' }])
+  if (pending.id === 'high3_world_stage') append([...(choiceId === 'YES' ? [{ type: 'RACE', raceId: 'japan_cup' }] : []), { type: 'SPECIAL', specialId: 'final_stage' }])
+  if (pending.id === 'high3_final_stage' && choiceId === 'YES') append([{ type: 'RACE', raceId: 'arima_kinen' }])
+  return scheduleNextYear3Action(next, rng)
 }
 
 export function selectHighSchoolRunningStyle(career, styleId) {
@@ -305,6 +408,28 @@ export function dismissHighYear2Achievement(career) {
   return { ...career, highYear2: { ...career.highYear2, pendingAchievement: null } }
 }
 
+const YEAR3_ACHIEVEMENT_RULES = [
+  { id: 'SPRINT_KING', name: '스프린트 왕', races: [['takamatsunomiya_kinen'], ['sprinters_stakes']] },
+  { id: 'MILE_DOMINATOR', name: '마일의 지배자', races: [['victoria_mile', 'yasuda_kinen'], ['mile_championship']] },
+  { id: 'TENNO_DOUBLE', name: '봄·가을 천황상 제패', races: [['tenno_sho_spring'], ['tenno_sho_autumn']] },
+  { id: 'GRAND_PRIX_DOUBLE', name: '그랑프리 제패', races: [['takarazuka_kinen'], ['arima_kinen']] },
+  { id: 'AUTUMN_TRIPLE', name: '가을 고마 3관', races: [['tenno_sho_autumn'], ['japan_cup'], ['arima_kinen']] },
+]
+
+function unlockYear3Achievements(career) {
+  const achievements = [...career.highYear3.achievements]
+  const unlocked = YEAR3_ACHIEVEMENT_RULES.filter((rule) => !achievements.some(({ id }) => id === rule.id) && rule.races.every((alternatives) => alternatives.some((raceId) => career.highYear3.raceResults[raceId]?.won))).map(({ id, name }) => ({ id, name }))
+  if (!unlocked.length) return career
+  career.currentTurnHistory.achievements = [...(career.currentTurnHistory.achievements ?? []), ...unlocked]
+  return { ...career, highYear3: { ...career.highYear3, achievements: [...achievements, ...unlocked], pendingAchievements: [...career.highYear3.pendingAchievements, ...unlocked] } }
+}
+
+export function dismissHighYear3Achievement(career, rng = Math.random) {
+  if (!career.highYear3?.pendingAchievements.length) return career
+  const next = { ...career, highYear3: { ...career.highYear3, pendingAchievements: career.highYear3.pendingAchievements.slice(1) } }
+  return next.highYear3.pendingAchievements.length ? next : scheduleNextYear3Action(next, rng)
+}
+
 function finishYear2Race(career, race, rng) {
   let next = applyRaceRewards(career, race)
   next.currentTurnHistory = structuredClone(career.currentTurnHistory)
@@ -326,10 +451,27 @@ function finishYear2Race(career, race, rng) {
   return finalizeHighTurn(next, rng)
 }
 
+function finishYear3Race(career, race, rng) {
+  let next = applyRaceRewards(career, race)
+  next.currentTurnHistory = structuredClone(career.currentTurnHistory)
+  writeRaceHistory(next, race)
+  const result = { raceId: race.raceId, raceName: race.raceName, turn: career.turnIndex + 1, distance: race.distance, grade: race.grade ?? 'G1', runningStyle: career.runningStyle, finishPosition: race.finishPosition, won: Boolean(race.won) }
+  const racesCompletedThisTurn = next.highYear3.racesCompletedThisTurn + 1
+  next = {
+    ...next,
+    highYear3: { ...next.highYear3, raceResults: { ...next.highYear3.raceResults, [race.raceId]: result }, racesCompletedThisTurn },
+    highSchoolState: { ...next.highSchoolState, pendingRace: null, pendingRaceResult: null, racePlan: null },
+  }
+  if (racesCompletedThisTurn >= 2) next = { ...next, condition: moveCondition(next.condition, -1), highYear3: { ...next.highYear3, penaltiesAppliedThisTurn: next.highYear3.penaltiesAppliedThisTurn + 1 } }
+  next = unlockYear3Achievements(next)
+  return next.highYear3.pendingAchievements.length ? next : scheduleNextYear3Action(next, rng)
+}
+
 export function finishHighSchoolRace(career, rng = Math.random) {
   const race = career.highSchoolState?.pendingRaceResult
   if (!race) return career
   if (race.result !== 'DECLINED' && !career.highSchoolState?.racePlan?.completed) return career
+  if (career.turnIndex >= 20 && career.turnIndex <= 23) return finishYear3Race(career, race, rng)
   if (career.turnIndex >= 16 && career.turnIndex <= 19) return finishYear2Race(career, race, rng)
   let next = race.result === 'DECLINED' ? career : applyRaceRewards(career, race)
   next.currentTurnHistory = structuredClone(career.currentTurnHistory)

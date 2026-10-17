@@ -86,7 +86,7 @@ export function completeHighSchoolAdmissionSequence(career) {
 
 export function enterHighSchool(career) {
   if (!career.highSchoolAdmission?.accepted || !career.highSchoolAdmission.sequenceCompleted) return career
-  return { ...career, turnIndex: 12, highSchoolState: { completedEventIds: [], pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, racePlan: null, pendingRunningStyleDecision: null, runningStyleDecisionResolved: false, debutStatus: 'PENDING', debutAttempts: 0, achievements: [] }, highYear2: null, notice: '중앙 트레센 학원 고등부 진학이 결정되었습니다.' }
+  return { ...career, turnIndex: 12, highSchoolState: { completedEventIds: [], pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, racePlan: null, pendingRunningStyleDecision: null, runningStyleDecisionResolved: false, debutStatus: 'PENDING', debutAttempts: 0, achievements: [] }, highYear2: null, highYear3: null, notice: '중앙 트레센 학원 고등부 진학이 결정되었습니다.' }
 }
 
 export function completeNonRacerCareer(career) {

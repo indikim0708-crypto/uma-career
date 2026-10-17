@@ -12,7 +12,7 @@ import {
   STYLE_BASE_SHIFTS,
 } from '../data/raceBalance.js'
 
-const HIGH_YEAR2_RACE_IDS = new Set(['nhk_mile_cup', 'satsuki_sho', 'japan_derby', 'oka_sho', 'oaks', 'sprinters_stakes', 'mile_championship', 'kikuka_sho', 'shuka_sho'])
+const HIGH_YEAR2_RACE_IDS = new Set(['nhk_mile_cup', 'satsuki_sho', 'japan_derby', 'oka_sho', 'oaks', 'sprinters_stakes', 'mile_championship', 'kikuka_sho', 'shuka_sho', 'takamatsunomiya_kinen', 'osaka_hai', 'tenno_sho_spring', 'victoria_mile', 'yasuda_kinen', 'takarazuka_kinen', 'tenno_sho_autumn', 'japan_cup', 'arima_kinen'])
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
 const weightedScore = (stats, weights) => Object.entries(weights).reduce((sum, [id, weight]) => sum + stats[id] * weight, 0)
 
@@ -56,7 +56,10 @@ export function calculateStyleFitScore(stats, runningStyle) {
 
 export function getRaceDistance(distance) {
   const parsed = Number.parseInt(String(distance), 10)
-  return DISTANCE_WEIGHTS[parsed] ? parsed : 1600
+  if (DISTANCE_WEIGHTS[parsed]) return parsed
+  if (parsed === 2200 || parsed === 2500) return 2400
+  if (parsed === 3200) return 3000
+  return 1600
 }
 
 export function calculateDistanceScore(stats, distance) {

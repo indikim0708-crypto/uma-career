@@ -27,11 +27,13 @@ import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDuratio
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
 import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, calculateHighSchoolSpecialtyScore, calculateHighSchoolSpecialtyStat, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
-import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
+import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, createHighYear3State, dismissHighYear3Achievement, finishHighSchoolEvent, finishHighSchoolRace, finishHighSchoolRunningStyle, getRecommendedRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, resolveHighYear3Special, selectHighSchoolEventChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
 import { createRacePlan } from '../src/game/racePlan.js'
 import { calculateDistanceScore, calculatePositionKeepScore, calculateStaminaPenalty, calculateStyleFitScore, getPositionKeepRange, getRaceFieldStrength, simulateRace } from '../src/game/raceSimulation.js'
 import { HIGH_SCHOOL_YEAR2_EVENTS } from '../src/data/highSchoolYear2Events.js'
 import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../src/data/highSchoolYear2Races.js'
+import { HIGH_SCHOOL_YEAR3_EVENTS } from '../src/data/highSchoolYear3Events.js'
+import { HIGH_YEAR3_RACES } from '../src/data/highSchoolYear3Races.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -61,6 +63,40 @@ function finishPendingHighRace(career, rng = () => 0) {
   let next = resolveHighSchoolRace(career, career.highSchoolState.pendingRace.choices[0].id, rng)
   next = completeHighSchoolRaceSequence(next)
   return finishHighSchoolRace(next, rng)
+}
+
+function runSeniorScenario(growthTypeId, decisions = {}) {
+  const rng = () => 0
+  let career = {
+    ...chooseGrowthType(createCareer({ lastName: '시니어', firstName: '검증' }, rng), growthTypeId),
+    stats: { speed: 115, stamina: 115, power: 115, grit: 115, intelligence: 115 },
+    turnIndex: 20,
+    condition: '보통',
+    runningStyle: 'SENKO',
+    history: [],
+    logs: [],
+    highSchoolState: createHighSchoolState(),
+    highYear2: createHighYear2State(),
+    highYear3: createHighYear3State(),
+  }
+  while (!career.complete) {
+    career = advanceCareer(career, rng)
+    if (career.highSchoolState.pendingEvent) {
+      career = selectHighSchoolEventChoice(career, career.highSchoolState.pendingEvent.choices[0].id, rng)
+      career = finishHighSchoolEvent(career, rng)
+    }
+    while (career.highYear3?.pendingSpecial || career.highSchoolState.pendingRace || career.highYear3?.pendingAchievements.length) {
+      if (career.highYear3.pendingSpecial) {
+        const pending = career.highYear3.pendingSpecial
+        career = resolveHighYear3Special(career, decisions[pending.id] ?? pending.choices[0].id, rng)
+      } else if (career.highSchoolState.pendingRace) {
+        career = finishPendingHighRace(career, rng)
+      } else {
+        career = dismissHighYear3Achievement(career, rng)
+      }
+    }
+  }
+  return career
 }
 
 function seededRandom(seed) {
@@ -111,11 +147,15 @@ function finishCareer(typeId, seed = 1, overrides = {}) {
     if (career.highYear2?.pendingSpecial) {
       career = resolveHighYear2Special(career, career.highYear2.pendingSpecial.choices[0].id, rng)
     }
+    if (career.highYear3?.pendingSpecial) {
+      career = resolveHighYear3Special(career, career.highYear3.pendingSpecial.choices[0].id, rng)
+    }
     if (career.highSchoolState?.pendingRace) {
       career = resolveHighSchoolRace(career, career.highSchoolState.pendingRace.choices[0].id, rng)
       career = completeHighSchoolRaceSequence(career)
       career = finishHighSchoolRace(career, rng)
     }
+    while (career.highYear3?.pendingAchievements?.length) career = dismissHighYear3Achievement(career, rng)
   }
   return career
 }
@@ -1316,4 +1356,41 @@ test('sprint skips the spring G1 and one missed classic win prevents the triple 
   missed = finishPendingHighRace(missed)
   assert.equal(missed.highYear2.raceResults.kikuka_sho.won, true)
   assert.deepEqual(missed.highYear2.achievements, [])
+})
+
+test('senior season data has 20 unique common events, three choices each, and all stable G1 entries', () => {
+  assert.equal(HIGH_SCHOOL_YEAR3_EVENTS.length, 20)
+  assert.equal(new Set(HIGH_SCHOOL_YEAR3_EVENTS.map(({ id }) => id)).size, 20)
+  assert.ok(HIGH_SCHOOL_YEAR3_EVENTS.every(({ type, choices }) => type === 'HIGH_YEAR3_COMMON' && choices.length === 3))
+  assert.deepEqual(Object.keys(HIGH_YEAR3_RACES), ['takamatsunomiya_kinen', 'osaka_hai', 'tenno_sho_spring', 'victoria_mile', 'yasuda_kinen', 'takarazuka_kinen', 'sprinters_stakes', 'tenno_sho_autumn', 'mile_championship', 'japan_cup', 'arima_kinen'])
+  assert.equal(HIGH_YEAR3_RACES.arima_kinen.distance, '2500m')
+  assert.equal(HIGH_YEAR3_RACES.tenno_sho_spring.distance, '3200m')
+})
+
+test('senior sprinter scenario runs its five selected G1s once and graduates after turn 24', () => {
+  const career = runSeniorScenario('sprinter', { high3_sprint_mile: 'YES', high3_mile_wall: 'YES', high3_final_stage: 'YES' })
+  assert.equal(career.complete, true)
+  assert.equal(career.turnIndex, 23)
+  assert.deepEqual(Object.keys(career.highYear3.raceResults), ['takamatsunomiya_kinen', 'yasuda_kinen', 'sprinters_stakes', 'mile_championship', 'arima_kinen'])
+  assert.equal(career.highSchoolState.completedEventIds.filter((id) => id.startsWith('high3_')).length, 4)
+  assert.ok(career.highYear3.achievements.some(({ id }) => id === 'SPRINT_KING'))
+})
+
+test('senior miler scenario applies one condition penalty after every additional same-turn G1', () => {
+  const career = runSeniorScenario('miler', { high3_spring_mile: 'BOTH', high3_autumn_2000: 'YES', high3_longer_stage: 'JAPAN_CUP', high3_final_stage: 'YES' })
+  const finalTurn = career.history.find(({ turn }) => turn === 24)
+  assert.deepEqual(finalTurn.races.map(({ raceId }) => raceId), ['tenno_sho_autumn', 'mile_championship', 'japan_cup', 'arima_kinen'])
+  assert.equal(career.highYear3.penaltiesAppliedThisTurn, 3)
+  assert.ok(career.highYear3.achievements.some(({ id }) => id === 'MILE_DOMINATOR'))
+})
+
+test('senior router and stayer scenarios preserve sequential choices and unlock race achievements', () => {
+  const router = runSeniorScenario('router', { high3_autumn_tenno: 'YES', high3_world_stage: 'YES', high3_final_stage: 'YES' })
+  assert.ok(router.highYear3.achievements.some(({ id }) => id === 'AUTUMN_TRIPLE'))
+  assert.deepEqual(router.history.find(({ turn }) => turn === 24).races.map(({ raceId }) => raceId), ['tenno_sho_autumn', 'japan_cup', 'arima_kinen'])
+
+  const stayer = runSeniorScenario('stayer', { high3_spring_first_g1: 'PREPARE', high3_spring_grand_prix: 'YES', high3_autumn_tenno: 'YES', high3_world_stage: 'YES', high3_final_stage: 'YES' })
+  assert.equal(stayer.highYear3.raceResults.osaka_hai, undefined)
+  assert.ok(stayer.highYear3.achievements.some(({ id }) => id === 'TENNO_DOUBLE'))
+  assert.ok(stayer.highYear3.achievements.some(({ id }) => id === 'GRAND_PRIX_DOUBLE'))
 })

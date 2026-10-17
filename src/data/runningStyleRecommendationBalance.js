@@ -6,6 +6,14 @@ export const TURN13_STAT_NORMS = {
   intelligence: { mean: 48.6291, sd: 6.537716 },
 }
 
+export const STAYER_STAT_NORMS = {
+  speed: { mean: 52.799245, sd: 6.761545 },
+  stamina: { mean: 61.6351, sd: 8.791105 },
+  power: { mean: 45.4313, sd: 6.41714 },
+  grit: { mean: 57.154475, sd: 7.06773 },
+  intelligence: { mean: 49.3297, sd: 6.710648 },
+}
+
 export const RUNNING_STYLE_RECOMMENDATION_BALANCE = {
   zScoreClamp: 2.5,
   frontBackDeadZone: 0.15,

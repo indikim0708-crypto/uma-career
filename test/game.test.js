@@ -38,7 +38,7 @@ import { HIGH_SCHOOL_LEGEND_EVENTS } from '../src/data/highSchoolLegendEvents.js
 import { createHighSchoolLegendState, ensureHighSchoolLegendPlan, getHighLegendWeights, selectHighSchoolLegend } from '../src/game/highSchoolLegend.js'
 import { applyTeamTurnPlan, calculateTeamReputation, createInitialTeamOffers, createTeamState, createTeamTurnPlan, getEligibleTransferTeams, getTeamTrainingPoints, prepareTeamTransferCheckpoint, resolveInitialTeamOffer, resolveTeamTransferOffer } from '../src/game/highSchoolTeam.js'
 import { INITIAL_TEAM_IDS, TEAM_BY_ID } from '../src/data/highSchoolTeams.js'
-import { TURN13_STAT_NORMS } from '../src/data/runningStyleRecommendationBalance.js'
+import { STAYER_STAT_NORMS, TURN13_STAT_NORMS } from '../src/data/runningStyleRecommendationBalance.js'
 import { normalizeTurn13Stats, recommendRunningStyle, safeZScore } from '../src/game/runningStyleRecommendation.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
@@ -888,6 +888,10 @@ test('running-style recommendation uses cohort Z-scores and the two-stage style 
   assert.equal(first.frontBackTieRoll, .25)
   assert.equal(first.detailTieRoll, .25)
   assert.notEqual(first.recommendation, second.recommendation)
+
+  const stayerMeans = Object.fromEntries(Object.entries(STAYER_STAT_NORMS).map(([id, norm]) => [id, norm.mean]))
+  assert.deepEqual(normalizeTurn13Stats(stayerMeans, 'stayer'), { speed: 0, stamina: 0, power: 0, grit: 0, intelligence: 0 })
+  assert.notDeepEqual(normalizeTurn13Stats(stayerMeans, 'router'), normalizeTurn13Stats(stayerMeans, 'stayer'))
 })
 
 test('race plans derive the result from position keep and the five simulation checkpoints', () => {

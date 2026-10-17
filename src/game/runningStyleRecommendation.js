@@ -1,4 +1,4 @@
-import { RUNNING_STYLE_RECOMMENDATION_BALANCE, TURN13_STAT_NORMS } from '../data/runningStyleRecommendationBalance.js'
+import { RUNNING_STYLE_RECOMMENDATION_BALANCE, STAYER_STAT_NORMS, TURN13_STAT_NORMS } from '../data/runningStyleRecommendationBalance.js'
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
 
@@ -8,8 +8,9 @@ export function safeZScore(value, mean, sd) {
   return clamp((value - mean) / sd, -limit, limit)
 }
 
-export function normalizeTurn13Stats(stats) {
-  return Object.fromEntries(Object.entries(TURN13_STAT_NORMS).map(([id, norm]) => [id, safeZScore(stats[id], norm.mean, norm.sd)]))
+export function normalizeTurn13Stats(stats, growthTypeId) {
+  const norms = growthTypeId === 'stayer' ? STAYER_STAT_NORMS : TURN13_STAT_NORMS
+  return Object.fromEntries(Object.entries(norms).map(([id, norm]) => [id, safeZScore(stats[id], norm.mean, norm.sd)]))
 }
 
 function weightedScore(zScores, weights) {
@@ -53,7 +54,7 @@ function resolveDetailStyle(scores, firstId, secondId, tieRoll) {
 export function recommendRunningStyle(stats, growthTypeId, rng = Math.random) {
   const frontBackTieRoll = rng()
   const detailTieRoll = rng()
-  const zScores = normalizeTurn13Stats(stats)
+  const zScores = normalizeTurn13Stats(stats, growthTypeId)
   const frontBackScores = calculateFrontBackScores(zScores)
   const groupResult = resolveFrontOrBack(frontBackScores, growthTypeId, frontBackTieRoll)
   const detailScores = groupResult.group === 'FRONT' ? calculateFrontStyleScores(zScores) : calculateBackStyleScores(zScores)

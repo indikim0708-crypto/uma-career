@@ -28,6 +28,7 @@ import { buildCareerResultSummary, isFirstG1Win } from './game/resultSummary.js'
 import { buildResultImageFilename, createResultImageBlob, saveOrShareResultImage } from './game/resultImageExport.js'
 import { CHARACTER_PORTRAITS } from './data/characterPortraits.js'
 import CharacterPortrait from './components/CharacterPortrait.jsx'
+import { trackCareerEnd, trackCareerStart, trackHighSchoolAdmission } from './utils/analytics.js'
 
 const SCREENS = {
   HOME: 'HOME',
@@ -770,8 +771,17 @@ function App() {
   const [homeSave, setHomeSave] = useState(() => loadCareerSave())
 
   const checkpointCareer = (nextCareer, nextScreen = screen, nextNames = names, nextSelectedType = selectedType) => {
-    setCareer(nextCareer)
-    const snapshot = saveCareerState({ screen: nextScreen, names: nextNames, career: nextCareer, selectedType: nextSelectedType })
+    let trackedCareer = nextCareer
+    if (trackedCareer?.highSchoolAdmission?.resolved && !trackedCareer.analyticsAdmissionSent) {
+      trackHighSchoolAdmission(trackedCareer)
+      trackedCareer = { ...trackedCareer, analyticsAdmissionSent: true }
+    }
+    if (trackedCareer?.complete && !trackedCareer.analyticsEndSent) {
+      trackCareerEnd(trackedCareer)
+      trackedCareer = { ...trackedCareer, analyticsEndSent: true }
+    }
+    setCareer(trackedCareer)
+    const snapshot = saveCareerState({ screen: nextScreen, names: nextNames, career: trackedCareer, selectedType: nextSelectedType })
     if (snapshot) setHomeSave(snapshot)
     if (nextScreen !== screen) setScreen(nextScreen)
   }
@@ -816,7 +826,9 @@ function App() {
   }
 
   const beginCareer = () => {
-    checkpointCareer(chooseGrowthType(career, selectedType), SCREENS.CAREER)
+    const next = chooseGrowthType(career, selectedType)
+    if (!next.analyticsStartSent) trackCareerStart(next)
+    checkpointCareer({ ...next, analyticsStartSent: true }, SCREENS.CAREER)
   }
 
   const handleAdvance = () => {

@@ -30,6 +30,26 @@ function validCareer(career, screen) {
   return true
 }
 
+function migrateCareerAnalyticsFlags(saveData) {
+  const career = saveData.gameState?.career
+  if (!career) return saveData
+  const hasAllFlags = ['analyticsStartSent', 'analyticsAdmissionSent', 'analyticsEndSent'].every((key) => typeof career[key] === 'boolean')
+  if (hasAllFlags) return saveData
+
+  return {
+    ...saveData,
+    gameState: {
+      ...saveData.gameState,
+      career: {
+        ...career,
+        analyticsStartSent: typeof career.analyticsStartSent === 'boolean' ? career.analyticsStartSent : Boolean(career.growthType),
+        analyticsAdmissionSent: typeof career.analyticsAdmissionSent === 'boolean' ? career.analyticsAdmissionSent : Boolean(career.highSchoolAdmission?.resolved),
+        analyticsEndSent: typeof career.analyticsEndSent === 'boolean' ? career.analyticsEndSent : Boolean(career.complete || career.badEnding || career.nonRacerEnding),
+      },
+    },
+  }
+}
+
 export function validateSaveData(saveData) {
   if (!isObject(saveData) || saveData.schemaVersion !== CAREER_SAVE_SCHEMA_VERSION) return false
   if (!Number.isFinite(saveData.savedAt) || !isObject(saveData.summary) || !isObject(saveData.gameState)) return false
@@ -88,7 +108,9 @@ export function loadCareerSave(storage = browserStorage()) {
       console.warn('UMA CAREER save is invalid or unsupported.')
       return null
     }
-    return parsed
+    const migrated = migrateCareerAnalyticsFlags(parsed)
+    if (migrated !== parsed) storage.setItem(CAREER_SAVE_KEY, JSON.stringify(migrated))
+    return migrated
   } catch (error) {
     console.warn('UMA CAREER save could not be loaded.', error)
     return null

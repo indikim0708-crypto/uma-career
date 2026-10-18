@@ -421,7 +421,7 @@ function RaceModal({ race, result, racePlan, history, stamina, speed, onSpeedCha
   const entryBlocked = !result && race.minimumStamina && stamina < race.minimumStamina
   const firstG1Win = isFirstG1Win(history, result)
   const resultText = result?.raceType === 'DEBUT'
-    ? result.result === 'SUCCESS' ? '공식 레이스 데뷔에 성공했습니다!' : '아직 공식 레이서로 인정받지 못했습니다. 하지만 한 번의 기회가 더 남아 있습니다.'
+    ? result.result === 'SUCCESS' ? '공식 레이스 데뷔에 성공했습니다!' : result.attempt === 2 ? '프로 데뷔에 실패했습니다. 두 번의 도전 끝에 공식 레이서가 되지 못했습니다.' : '아직 공식 레이서로 인정받지 못했습니다. 하지만 한 번의 기회가 더 남아 있습니다.'
     : result?.result === 'DECLINED' ? '올해는 경험을 쌓는 데 집중하기로 했습니다.'
       : result?.result === 'INELIGIBLE' ? '스태미나가 부족해 이번 레이스는 출전하지 않았습니다.'
       : firstG1Win ? '첫 G1 우승 기록을 남겼습니다!' : result?.won ? `${result.raceName}에서 우승했습니다!` : result?.finishPosition <= 3 ? `${result.raceType} 무대에서 좋은 성과를 거뒀습니다.` : result?.finishPosition <= 6 ? '큰 무대에서 값진 경험을 얻었습니다.' : '강한 상대들과의 격차를 실감했습니다.'

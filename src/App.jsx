@@ -674,7 +674,7 @@ function Complete({ career, onRestart }) {
     <div className="result-actions">
       <div className="result-actions-primary">
         <button className="primary-button" type="button" onClick={handleExport} disabled={isExporting}><span>{isExporting ? '저장 중...' : '저장하기'}</span><span aria-hidden="true">↓</span></button>
-        <a className="secondary-button result-action-link" href="https://uma-race.vercel.app/" target="_blank" rel="noopener noreferrer"><span>경마장 가기</span><span aria-hidden="true">↗</span></a>
+        <a className="secondary-button result-action-link race-link-button" href="https://uma-race.vercel.app/" target="_blank" rel="noopener noreferrer"><span>경마장 가기</span><span aria-hidden="true">↗</span></a>
       </div>
       {exportStatus && <p className="result-export-status" role="status">{exportStatus}</p>}
       <button className="secondary-button" type="button" onClick={onRestart}><span>새로운 커리어 시작</span><span aria-hidden="true">↻</span></button>

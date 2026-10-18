@@ -75,7 +75,7 @@ export function beginHighSchoolAdmission(career, rng = Math.random) {
   return {
     ...career,
     highSchoolAdmission: plan,
-    nonRacerEnding: resolution.accepted ? null : resolveNonRacerEnding(career),
+    nonRacerEnding: resolution.accepted ? null : resolveNonRacerEnding(career, rng),
     notice: '중등부를 졸업했습니다. 고등부 진학 심사가 시작됩니다.',
   }
 }

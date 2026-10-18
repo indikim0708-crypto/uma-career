@@ -11,7 +11,49 @@ export function getNonRacerEventCounts(history = []) {
   }
 }
 
-export function resolveNonRacerEnding(career) {
+function getRankWeights(candidateCount) {
+  if (candidateCount === 1) return [1]
+  if (candidateCount === 2) return [0.6, 0.4]
+  if (candidateCount === 3) return [0.5, 0.3, 0.2]
+  if (candidateCount === 4) return [0.45, 0.3, 0.15, 0.1]
+  return [0.4, 0.25, 0.15, 0.1, ...Array(candidateCount - 4).fill(0.1 / (candidateCount - 4))]
+}
+
+function rankCandidates(candidates, rng) {
+  const scoreGroups = new Map()
+  for (const candidate of candidates) {
+    const group = scoreGroups.get(candidate.score) ?? []
+    group.push(candidate)
+    scoreGroups.set(candidate.score, group)
+  }
+
+  return [...scoreGroups.entries()]
+    .sort(([left], [right]) => right - left)
+    .flatMap(([, group]) => {
+      const shuffled = [...group]
+      for (let index = shuffled.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(rng() * (index + 1))
+        ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+      }
+      return shuffled
+    })
+}
+
+function chooseRankedCandidate(candidates, rng) {
+  const ranked = rankCandidates(candidates, rng)
+  const weights = getRankWeights(ranked.length)
+  const roll = rng()
+  let cumulative = 0
+
+  for (let index = 0; index < ranked.length; index += 1) {
+    cumulative += weights[index]
+    if (roll < cumulative || index === ranked.length - 1) return ranked[index]
+  }
+
+  return ranked.at(-1)
+}
+
+export function resolveNonRacerEnding(career, rng = Math.random) {
   const { speed, stamina, power, grit, intelligence } = career.stats
   const counts = getNonRacerEventCounts(career.history)
   const average = statValues(career).reduce((sum, value) => sum + value, 0) / 5
@@ -40,6 +82,6 @@ export function resolveNonRacerEnding(career) {
   ].filter(Boolean).map(([id, score]) => ({ ...NON_RACER_ENDINGS[id], score }))
 
   if (!candidates.length) return { ...NON_RACER_ENDINGS.ORDINARY_STUDENT, score: 0, counts, statsAverage: average, statSpread: spread }
-  candidates.sort((a, b) => b.score - a.score || a.priority - b.priority)
-  return { ...candidates[0], counts, statsAverage: average, statSpread: spread }
+  const selected = chooseRankedCandidate(candidates, rng)
+  return { ...selected, counts, statsAverage: average, statSpread: spread }
 }

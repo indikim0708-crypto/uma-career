@@ -695,6 +695,7 @@ function Complete({ career, onRestart }) {
         <div className="result-layout">
           <section className="panel result-profile"><p className="section-kicker">CAREER PROFILE</p><dl className="profile-list"><div><dt>출신</dt><dd>{career.region.name}</dd></div><div><dt>초등학교</dt><dd>{career.school.name}</dd></div><div><dt>중등학교</dt><dd>{middleSchool?.displayName ?? career.middleState?.schoolName}</dd></div><div><dt>성장 타입</dt><dd>{career.growthType.name}</dd></div><div><dt>중앙 트레센 고등부</dt><dd>불합격</dd></div><div><dt>최종 진로</dt><dd>{ending.career}</dd></div></dl></section>
           <section className="panel result-stats"><p className="section-kicker">FINAL ABILITY</p><h2>최종 능력치</h2><StatGrid stats={career.stats} /></section>
+          <section className="panel reveal-panel"><p className="section-kicker">HIDDEN TRAITS REVEALED</p><h2>숨겨진 자질</h2><div className="reveal-values"><div><span>포텐셜</span><strong>{career.potential}</strong><small>/ 100</small></div><div><span>안정성</span><strong>{career.stability}</strong><small>/ 100</small></div></div></section>
           <section className="panel ending-panel"><p className="section-kicker">ANOTHER PATH</p><h2>「{ending.title}」</h2><p>{ending.body}</p></section>
         </div>
         {resultTools}

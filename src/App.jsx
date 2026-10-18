@@ -209,7 +209,7 @@ function CharacterSelect({ career, onConfirm }) {
         <section className="portrait-select-heading">
           <p className="section-kicker">CHARACTER SELECT</p>
           <h1>캐릭터 선택</h1>
-          <p>{career.fullName}와 앞으로 함께할 모습을 선택하세요.</p>
+          <p>{career.fullName}의 모습을 선택하세요.</p>
         </section>
         <div className="portrait-grid" role="group" aria-label="캐릭터 얼굴 선택">
           {CHARACTER_PORTRAITS.map((portrait, index) => <button className={`portrait-choice${selectedPortraitId === portrait.id ? ' selected' : ''}`} type="button" key={portrait.id} aria-label={`캐릭터 ${index + 1} 선택`} aria-pressed={selectedPortraitId === portrait.id} onClick={() => setSelectedPortraitId(portrait.id)}><CharacterPortrait portraitId={portrait.id} alt={`캐릭터 ${index + 1} 얼굴`} />{selectedPortraitId === portrait.id && <span className="portrait-check" aria-hidden="true">✓</span>}</button>)}

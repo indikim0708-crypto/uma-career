@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { GROWTH_TYPES } from '../src/data/growthTypes.js'
+import { FIELD_STRENGTH_RANGES } from '../src/data/raceBalance.js'
 import { MAX_STAT, STATS } from '../src/data/stats.js'
 import { TURNS } from '../src/data/turns.js'
 import { getNaturalConditionWeights, getNextCondition, rollNaturalConditionChange } from '../src/game/condition.js'
@@ -1019,7 +1020,9 @@ test('race score helpers use the requested position, style, distance, and stamin
   assert.deepEqual(getPositionKeepRange('OIKOMI', 12), [10, 12])
   assert.equal(getRaceFieldStrength({ raceType: 'DEBUT', fieldStrength: 61 }), 61)
   const debutFieldStrength = getRaceFieldStrength({ raceType: 'DEBUT' }, () => .5)
-  assert.ok(debutFieldStrength >= 55 && debutFieldStrength <= 65)
+  assert.ok(debutFieldStrength >= 45 && debutFieldStrength <= 55)
+  const retryFieldStrength = getRaceFieldStrength({ raceType: 'DEBUT', fieldStrengthRange: FIELD_STRENGTH_RANGES.DEBUT_RETRY }, () => .5)
+  assert.ok(retryFieldStrength >= 40 && retryFieldStrength <= 50)
 
   const frontRunnerStats = { speed: 75, stamina: 72, power: 50, grit: 45, intelligence: 75 }
   const closerStats = { speed: 50, stamina: 48, power: 75, grit: 72, intelligence: 75 }

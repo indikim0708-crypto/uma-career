@@ -56,7 +56,7 @@ export function isSuccessfulDebutPosition(finalPosition) {
 
 function createDebutRace(career, retry) {
   const raceScore = getHighSchoolRaceScore(career)
-  return { id: retry ? 'debut_retry' : 'debut', raceId: retry ? 'debut_retry' : 'debut', raceName: retry ? '데뷔 재도전' : '첫 데뷔전', raceType: 'DEBUT', distance: '데뷔전', attempt: retry ? 2 : 1, raceScore, fieldStrengthRange: FIELD_STRENGTH_RANGES.DEBUT, choices: [{ id: 'run', text: '데뷔전에 출전한다' }] }
+  return { id: retry ? 'debut_retry' : 'debut', raceId: retry ? 'debut_retry' : 'debut', raceName: retry ? '데뷔 재도전' : '첫 데뷔전', raceType: 'DEBUT', distance: '데뷔전', attempt: retry ? 2 : 1, raceScore, fieldStrengthRange: retry ? FIELD_STRENGTH_RANGES.DEBUT_RETRY : FIELD_STRENGTH_RANGES.DEBUT, choices: [{ id: 'run', text: '데뷔전에 출전한다' }] }
 }
 
 function createG1Race(career) {

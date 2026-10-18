@@ -42,7 +42,8 @@ export const STYLE_BASE_SHIFTS = {
 }
 
 export const FIELD_STRENGTH_RANGES = {
-  DEBUT: [55, 65],
+  DEBUT: [45, 55],
+  DEBUT_RETRY: [40, 50],
   HIGH_YEAR1_G1: [75, 85],
   HIGH_YEAR2_G1: [85, 100],
   HIGH_YEAR3_G1: [95, 110],

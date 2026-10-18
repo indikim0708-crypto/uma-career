@@ -38,7 +38,7 @@ export const HIGH_SCHOOL_YEAR3_EVENTS = [
   event('high3_fans_waiting', '기다리는 팬들', 'grit', 'intelligence'),
   event('high3_media_attention', '늘어난 카메라', 'intelligence', 'grit'),
   event('high3_record_board', '기록판에 남은 이름', 'grit', 'speed'),
-  event('high3_what_is_strength', '강하다는 것은', 'power', 'grit'),
+  event('high3_what_is_strength', '강함이란 무엇인가', 'power', 'grit'),
   event('high3_last_camp', '마지막 여름 합숙', 'stamina', 'power'),
   event('high3_future_after_graduation', '졸업 이후의 이야기', 'intelligence', 'grit'),
   event('high3_before_final_stage', '마지막 무대를 앞두고', 'speed', 'intelligence'),
@@ -57,6 +57,12 @@ function g1Wins(career) {
 }
 
 export function materializeHighYear3Event(baseEvent, career) {
+  if (baseEvent.id === 'high3_what_is_strength') {
+    return {
+      ...baseEvent,
+      situation: '마지막 시즌을 앞두고, 코치와 함께 진정한 강함이 무엇인지 이야기를 나누었습니다.',
+    }
+  }
   if (baseEvent.id === 'high3_champion_pressure') {
     return { ...baseEvent, situation: g1Wins(career) >= 2 ? '이제 출전한다는 이유만으로 우승 후보로 지목되고 있습니다.' : '마지막 시즌이 시작됐지만 아직 모두가 인정하는 정상에는 오르지 못했습니다.' }
   }

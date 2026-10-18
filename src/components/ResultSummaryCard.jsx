@@ -53,25 +53,33 @@ const ResultSummaryCard = forwardRef(function ResultSummaryCard({ summary }, ref
         </div>
 
         <div className="summary-card-right">
-          <section className="summary-card-section summary-card-race-record">
+          {hasHighSchool ? <section className="summary-card-section summary-card-race-record">
             <SectionTitle>RACE RECORD</SectionTitle>
             <h2>레이스 전적</h2>
             {raceRecords.length ? <div className="summary-card-race-list">{raceRecords.map((race, index) => <p key={`${race.turn}-${race.raceId}-${index}`}><b className={`race-grade-${race.grade.toLowerCase()}`}>[{race.grade}]</b><span>{race.raceName}</span><strong>{race.finalPosition}착</strong></p>)}</div> : <p className="summary-card-empty">출전 기록 없음</p>}
-          </section>
+          </section> : <section className="summary-card-section summary-card-overview">
+            <SectionTitle>CAREER SUMMARY</SectionTitle>
+            <h2>커리어 요약</h2>
+            <div className="summary-card-path-metrics"><span>고등부 진학</span><strong>다른 길을 선택했습니다</strong></div>
+          </section>}
         </div>
 
         <div className={`summary-card-bottom${isAnotherPath ? ' summary-card-bottom-another-path' : ''}`}>
-          <section className={`summary-card-section summary-card-overview${isAnotherPath ? ' summary-card-another-path' : ''}`}>
+          {isAnotherPath ? <section className="summary-card-section summary-card-another-path">
+            <SectionTitle>ANOTHER PATH</SectionTitle>
+            <h2>또 다른 길</h2>
+            <div className="summary-card-ending"><span>{ending.type}</span><strong>{ending.title}</strong>{ending.career && <em>최종 진로 · {ending.career}</em>}{ending.detail && <p>{ending.detail}</p>}</div>
+          </section> : <><section className="summary-card-section summary-card-overview">
             <SectionTitle>CAREER SUMMARY</SectionTitle>
             <h2>커리어 요약</h2>
-            {hasHighSchool ? <div className="summary-card-metrics"><div><span>G1 출전</span><strong>{raceSummary.g1Starts}회</strong></div><div><span>G1 우승</span><strong>{raceSummary.g1Wins}회</strong></div></div> : <div className="summary-card-path-metrics"><span>고등부 진학</span><strong>다른 길을 선택했습니다</strong></div>}
+            <div className="summary-card-metrics"><div><span>G1 출전</span><strong>{raceSummary.g1Starts}회</strong></div><div><span>G1 우승</span><strong>{raceSummary.g1Wins}회</strong></div></div>
             {careerTitle ? <div className="summary-card-career-title"><span>CAREER TITLE</span>{careerTitle.seasonTitle && <div className="summary-card-title-line"><small>{careerTitle.seasonTitle.tier}</small><strong style={{ color: careerTitle.seasonTitle.color }}>{careerTitle.seasonTitle.title}</strong></div>}<div className="summary-card-title-line"><small>{careerTitle.baseTitle.tier} · {profile.runningStyle ?? '각질 미정'} · G1 {raceSummary.g1Wins}승</small><strong style={{ color: careerTitle.baseTitle.color }}>{careerTitle.baseTitle.title}</strong></div></div> : <div className="summary-card-ending"><span>{ending.type}</span><strong>{ending.title}</strong>{ending.career && <em>최종 진로 · {ending.career}</em>}{ending.detail && <p>{ending.detail}</p>}</div>}
           </section>
           <section className="summary-card-section summary-card-achievements">
             <SectionTitle>ACHIEVEMENTS</SectionTitle>
             <h2>시즌 업적</h2>
             {achievements.length ? <div className="summary-card-achievement-list">{achievements.map((achievement) => <p key={achievement.id}>◆ {achievement.name}</p>)}</div> : <p className="summary-card-empty">획득한 시즌 업적 없음</p>}
-          </section>
+          </section></>}
         </div>
       </div>
 

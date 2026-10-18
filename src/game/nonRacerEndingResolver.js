@@ -1,5 +1,13 @@
 import { ANALYSIS_EVENT_IDS, HELPING_EVENT_IDS, NON_RACER_ENDINGS, TEAM_EVENT_IDS } from '../data/nonRacerEndings.js'
 
+export const OBSERVATION_CAREER_FAMILY_ID = 'OBSERVATION_CAREER_FAMILY'
+export const OBSERVATION_CAREER_ENDING_IDS = ['SCOUT', 'RACE_ANALYST', 'RACE_COMMENTATOR', 'SPORTS_JOURNALIST']
+
+const OBSERVATION_CAREER_FAMILY = {
+  id: OBSERVATION_CAREER_FAMILY_ID,
+  priority: 11,
+}
+
 const statValues = (career) => Object.values(career.stats)
 const isTop = (value, career) => value === Math.max(...statValues(career))
 export function getNonRacerEventCounts(history = []) {
@@ -17,6 +25,56 @@ function getRankWeights(candidateCount) {
   if (candidateCount === 3) return [0.5, 0.3, 0.2]
   if (candidateCount === 4) return [0.45, 0.3, 0.15, 0.1]
   return [0.4, 0.25, 0.15, 0.1, ...Array(candidateCount - 4).fill(0.1 / (candidateCount - 4))]
+}
+
+function normalizeObservationFamilyWeights(rawWeights) {
+  const probabilities = {}
+  let remainingIds = Object.keys(rawWeights)
+  let remainingProbability = 1
+
+  while (remainingIds.length) {
+    const totalWeight = remainingIds.reduce((sum, id) => sum + rawWeights[id], 0)
+    const bounded = remainingIds
+      .map((id) => ({ id, probability: remainingProbability * rawWeights[id] / totalWeight }))
+      .filter(({ probability }) => probability < 0.1 || probability > 0.45)
+
+    if (!bounded.length) {
+      for (const { id, probability } of remainingIds.map((id) => ({ id, probability: remainingProbability * rawWeights[id] / totalWeight }))) {
+        probabilities[id] = probability
+      }
+      break
+    }
+
+    for (const { id, probability } of bounded) {
+      const clamped = Math.max(0.1, Math.min(0.45, probability))
+      probabilities[id] = clamped
+      remainingProbability -= clamped
+    }
+    remainingIds = remainingIds.filter((id) => !bounded.some((entry) => entry.id === id))
+  }
+
+  return probabilities
+}
+
+export function selectObservationCareerEnding(career, counts = getNonRacerEventCounts(career.history), rng = Math.random) {
+  const { speed, power, intelligence } = career.stats
+  const rawWeights = Object.fromEntries(OBSERVATION_CAREER_ENDING_IDS.map((id) => [id, 25]))
+  if (power > speed) rawWeights.SCOUT += 8
+  if (isTop(intelligence, career)) rawWeights.RACE_ANALYST += 12
+  if (speed >= 50) rawWeights.RACE_COMMENTATOR += 8
+  if (counts.analysis >= 1) rawWeights.SPORTS_JOURNALIST += 12
+
+  const probabilities = normalizeObservationFamilyWeights(rawWeights)
+  const roll = rng()
+  let cumulative = 0
+  for (const id of OBSERVATION_CAREER_ENDING_IDS) {
+    cumulative += probabilities[id]
+    if (roll < cumulative || id === OBSERVATION_CAREER_ENDING_IDS.at(-1)) {
+      return { ...NON_RACER_ENDINGS[id], familyProbability: probabilities[id] }
+    }
+  }
+
+  return { ...NON_RACER_ENDINGS.SCOUT, familyProbability: probabilities.SCOUT }
 }
 
 export function rankNonRacerEndingCandidates(candidates, rng = Math.random) {
@@ -61,18 +119,16 @@ export function getNonRacerEndingCandidates(career) {
   const average = statValues(career).reduce((sum, value) => sum + value, 0) / 5
   const spread = Math.max(...statValues(career)) - Math.min(...statValues(career))
   const centralMiddle = career.middleState?.schoolId === 'central_tracen_middle'
+  const observationFamilyEligible = intelligence >= 34 && (speed >= 45 || power >= 45)
   const candidates = [
-    intelligence >= 40 && isTop(intelligence, career) && ['RACE_ANALYST', intelligence * 1.5 + counts.analysis * 8],
     power >= 45 && grit >= 40 && intelligence >= 32 && ['TRAINER', power * 0.7 + grit * 0.7 + intelligence * 0.6 + counts.helping * 5],
     intelligence >= 40 && stamina >= 35 && ['SPORTS_SCIENTIST', intelligence * 1.1 + stamina * 0.8 + counts.analysis * 6],
     speed >= 60 && isTop(speed, career) && ['SPRINT_ATHLETE', speed * 1.5 + power * 0.5 + (['sprinter', 'miler'].includes(career.growthType.id) ? 5 : 0)],
     stamina >= 55 && grit >= 50 && ['ENDURANCE_ATHLETE', stamina * 1.2 + grit * 0.8 + (career.growthType.id === 'stayer' ? 5 : 0)],
     power >= 60 && isTop(power, career) && ['PHYSICAL_TRAINER', power * 1.5 + grit * 0.5],
-    intelligence >= 35 && counts.analysis >= 1 && ['SPORTS_JOURNALIST', intelligence * 1.2 + counts.analysis * 8],
     grit >= 45 && intelligence >= 32 && ['PHYSICAL_EDUCATOR', grit * 0.9 + intelligence * 0.7 + counts.helping * 6],
     centralMiddle && spread <= 20 && ['TRACEN_STAFF', average + 10 + Math.min(counts.team * 2, 8)],
-    intelligence >= 35 && speed >= 35 && ['RACE_COMMENTATOR', intelligence * 1.15 + speed * 0.75 + counts.analysis * 8],
-    intelligence >= 34 && (speed >= 45 || power >= 45) && ['SCOUT', intelligence * 0.9 + speed * 0.75 + power * 0.75 + (speed >= 45 && power >= 45 ? 8 : 0)],
+    observationFamilyEligible && [OBSERVATION_CAREER_FAMILY_ID, intelligence * 0.9 + speed * 0.75 + power * 0.75 + (speed >= 45 && power >= 45 ? 8 : 0)],
     intelligence >= 34 && stamina >= 35 && ['SPORTS_NUTRITIONIST', intelligence * 1.2 + stamina],
     stamina >= 38 && grit >= 38 && intelligence >= 30 && ['REHAB_TRAINER', stamina + grit + intelligence * 0.6 + counts.helping * 5],
     power >= 42 && intelligence >= 34 && ['EQUIPMENT_DEVELOPER', power * 1.1 + intelligence * 1.1],
@@ -81,7 +137,7 @@ export function getNonRacerEndingCandidates(career) {
     speed >= 52 && stamina >= 42 && ['MIDDLE_DISTANCE_ATHLETE', speed + stamina * 0.8 + (career.growthType.id === 'router' ? 4 : 0)],
     intelligence >= 32 && (counts.analysis >= 1 || counts.team >= 1) && ['SPORTS_PHOTOGRAPHER', intelligence * 1.25 + counts.analysis * 8 + counts.team * 4],
     grit >= 40 && average >= 35 && ['LOCAL_SPORTS_INSTRUCTOR', grit * 0.8 + average + counts.helping * 6],
-  ].filter(Boolean).map(([id, score]) => ({ ...NON_RACER_ENDINGS[id], score }))
+  ].filter(Boolean).map(([id, score]) => ({ ...(id === OBSERVATION_CAREER_FAMILY_ID ? OBSERVATION_CAREER_FAMILY : NON_RACER_ENDINGS[id]), score }))
 
   return { candidates, counts, statsAverage: average, statSpread: spread }
 }
@@ -90,5 +146,6 @@ export function resolveNonRacerEnding(career, rng = Math.random) {
   const { candidates, counts, statsAverage, statSpread } = getNonRacerEndingCandidates(career)
   if (!candidates.length) return { ...NON_RACER_ENDINGS.ORDINARY_STUDENT, score: 0, counts, statsAverage, statSpread }
   const { selected } = selectRankedNonRacerEnding(candidates, rng)
-  return { ...selected, counts, statsAverage, statSpread }
+  const ending = selected.id === OBSERVATION_CAREER_FAMILY_ID ? selectObservationCareerEnding(career, counts, rng) : selected
+  return { ...ending, counts, statsAverage, statSpread }
 }

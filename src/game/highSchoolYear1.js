@@ -1,5 +1,6 @@
 import { HIGH_SCHOOL_YEAR1_EVENTS } from '../data/highSchoolYear1Events.js'
 import { MAX_STAT, STATS } from '../data/stats.js'
+import { FIELD_STRENGTH_RANGES } from '../data/raceBalance.js'
 import { applyMiddleNaturalCondition } from './middleEvents.js'
 import { materializeOutcome, moveCondition, resolveEventChoice } from './eventResolver.js'
 import { randomChoice } from './eventScheduler.js'
@@ -9,7 +10,7 @@ import { TURNS } from '../data/turns.js'
 import { getRunningStyle } from '../data/runningStyles.js'
 import { createRacePlan } from './racePlan.js'
 import { HIGH_SCHOOL_YEAR2_EVENTS } from '../data/highSchoolYear2Events.js'
-import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../data/highSchoolYear2Races.js'
+import { HIGH_YEAR2_G2_BY_GROWTH, HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../data/highSchoolYear2Races.js'
 import { HIGH_YEAR3_RACES } from '../data/highSchoolYear3Races.js'
 import { pickHighYear3Event } from '../data/highSchoolYear3Events.js'
 import { ensureHighSchoolLegendPlan, getHighSchoolLegendDue } from './highSchoolLegend.js'
@@ -18,6 +19,7 @@ import { RUNNING_STYLE_RECOMMENDATION_REASONS } from '../data/runningStyleRecomm
 import { recommendRunningStyle } from './runningStyleRecommendation.js'
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
+const TOP_G1_RACE_IDS = new Set(['tenno_sho_spring', 'tenno_sho_autumn', 'japan_cup', 'arima_kinen'])
 
 export function createHighSchoolState() {
   return { completedEventIds: [], pendingEvent: null, pendingOutcome: null, pendingRace: null, pendingRaceResult: null, racePlan: null, pendingRunningStyleDecision: null, runningStyleDecisionResolved: false, debutStatus: 'PENDING', debutAttempts: 0, achievements: [] }
@@ -49,23 +51,27 @@ export function getHighSchoolRaceScore(career, raceId = 'debut') {
 
 function createDebutRace(career, retry) {
   const raceScore = getHighSchoolRaceScore(career)
-  return { id: retry ? 'debut_retry' : 'debut', raceId: retry ? 'debut_retry' : 'debut', raceName: retry ? '데뷔 재도전' : '첫 데뷔전', raceType: 'DEBUT', distance: '데뷔전', attempt: retry ? 2 : 1, raceScore, choices: [{ id: 'run', text: '데뷔전에 출전한다' }] }
+  return { id: retry ? 'debut_retry' : 'debut', raceId: retry ? 'debut_retry' : 'debut', raceName: retry ? '데뷔 재도전' : '첫 데뷔전', raceType: 'DEBUT', distance: '데뷔전', attempt: retry ? 2 : 1, raceScore, fieldStrengthRange: FIELD_STRENGTH_RANGES.DEBUT, choices: [{ id: 'run', text: '데뷔전에 출전한다' }] }
 }
 
 function createG1Race(career) {
   const miler = career.growthType.id === 'miler'
   const raceId = miler ? 'g1_asahi' : 'g1_hopeful'
-  return { id: raceId, raceId, raceName: miler ? '아사히배 퓨처러티 스테이크스' : '호프풀 스테이크스', raceType: 'G1', distance: miler ? '1600m' : '2000m', attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), choices: [{ id: 'enter', text: 'G1에 도전한다' }, { id: 'decline', text: '올해는 경험을 쌓는 데 집중한다' }] }
+  return { id: raceId, raceId, raceName: miler ? '아사히배 퓨처러티 스테이크스' : '호프풀 스테이크스', raceType: 'G1', distance: miler ? '1600m' : '2000m', attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), fieldStrengthRange: FIELD_STRENGTH_RANGES.HIGH_YEAR1_G1, choices: [{ id: 'enter', text: 'G1에 도전한다' }, { id: 'decline', text: '올해는 경험을 쌓는 데 집중한다' }] }
 }
 
 function createYear2Race(career, raceId) {
   const race = HIGH_YEAR2_RACES[raceId]
-  return { ...race, id: race.raceId, raceType: 'G1', attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), choices: [{ id: 'enter', text: `${race.raceName}에 출전한다` }] }
+  const fieldStrengthRange = race.grade === 'G2' ? (raceId === HIGH_YEAR2_G2_BY_GROWTH.early[career.growthType.id] ? FIELD_STRENGTH_RANGES.EARLY_G2 : FIELD_STRENGTH_RANGES.LATE_G2) : FIELD_STRENGTH_RANGES.HIGH_YEAR2_G1
+  const minimumStamina = raceId === 'kikuka_sho' ? 80 : null
+  return { ...race, id: race.raceId, raceType: race.grade, attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), fieldStrengthRange, minimumStamina, choices: [{ id: 'enter', text: `${race.raceName}에 출전한다` }] }
 }
 
 function createYear3Race(career, raceId) {
   const race = HIGH_YEAR3_RACES[raceId]
-  return { ...race, id: race.raceId, raceType: 'G1', attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), choices: [{ id: 'enter', text: `${race.raceName}에 출전한다` }] }
+  const fieldStrengthRange = race.grade === 'G2' ? FIELD_STRENGTH_RANGES.STAYER_PREP_G2 : TOP_G1_RACE_IDS.has(raceId) ? FIELD_STRENGTH_RANGES.TOP_G1 : FIELD_STRENGTH_RANGES.HIGH_YEAR3_G1
+  const minimumStamina = raceId === 'tenno_sho_spring' ? 100 : null
+  return { ...race, id: race.raceId, raceType: race.grade, attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), fieldStrengthRange, minimumStamina, choices: [{ id: 'enter', text: `${race.raceName}에 출전한다` }] }
 }
 
 function scheduleNextYear2Race(career) {
@@ -116,6 +122,12 @@ function applyChanges(career, changes, conditionDelta = 0) {
 function applyRaceRewards(career, race) {
   if (race.raceType === 'DEBUT') return career
   const primary = Object.entries(career.growthType.weights).sort((a, b) => b[1] - a[1])[0][0]
+  if (race.raceType === 'G2') {
+    if (race.won) return applyChanges(career, { [primary]: 3, intelligence: 2, grit: 1 })
+    if (race.finishPosition <= 3) return applyChanges(career, { [primary]: 2, intelligence: 1 })
+    if (race.finishPosition <= 6) return applyChanges(career, { intelligence: 1 })
+    return career
+  }
   if (race.won) return applyChanges(career, { intelligence: 5, [primary]: 5, grit: 3 }, 1)
   if (race.finishPosition <= 3) return applyChanges(career, { intelligence: 4, [primary]: 3, grit: 2 })
   if (race.finishPosition <= 6) return applyChanges(career, { intelligence: 3, [primary]: 2 })
@@ -123,7 +135,7 @@ function applyRaceRewards(career, race) {
 }
 
 function writeRaceHistory(career, race) {
-  const entry = { raceId: race.raceId, raceName: race.raceName, raceType: race.raceType, grade: race.grade ?? race.raceType, turn: career.turnIndex + 1, periodLabel: career.currentTurnHistory.periodLabel, distance: race.distance, attempt: race.attempt, result: race.result, finishPosition: race.finishPosition, finalPosition: race.finishPosition, runningStyle: career.runningStyle, raceSeed: race.raceSeed, startPosition: race.startPosition, earlyPosition: race.earlyPosition, middlePosition: race.middlePosition, finalCornerPosition: race.finalCornerPosition, finalStraightPosition: race.finalStraightPosition, won: Boolean(race.won) }
+  const entry = { raceId: race.raceId, raceName: race.raceName, raceType: race.raceType, grade: race.grade ?? race.raceType, turn: career.turnIndex + 1, periodLabel: career.currentTurnHistory.periodLabel, distance: race.distance, attempt: race.attempt, result: race.result, finishPosition: race.finishPosition, finalPosition: race.finishPosition, runningStyle: career.runningStyle, raceSeed: race.raceSeed, fieldStrength: race.fieldStrength, startPosition: race.startPosition, earlyPosition: race.earlyPosition, middlePosition: race.middlePosition, finalCornerPosition: race.finalCornerPosition, finalStraightPosition: race.finalStraightPosition, won: Boolean(race.won) }
   career.currentTurnHistory.race = entry
   career.currentTurnHistory.races = [...(career.currentTurnHistory.races ?? []), entry]
 }
@@ -184,13 +196,19 @@ function beginYear2PostEvent(career, turn, rng) {
     if (route === 'LONG') return { ...career, highYear2: { ...career.highYear2, pendingSpecial: derbyDreamSpecial(route), racesCompletedThisTurn: 0, consecutivePenaltyApplied: false } }
     return queueYear2Races(career, TURN18_RACES[route])
   }
-  if (turn === 19) return finalizeHighTurn(career, rng)
+  if (turn === 19) return { ...career, highYear2: { ...career.highYear2, pendingSpecial: year2G2Offer(career, 'late') } }
   if (turn === 20) return queueYear2Races(career, TURN20_RACES[career.highYear2.route])
   return finalizeHighTurn(career, rng)
 }
 
 const special = (id, title, description, choices) => ({ id, title, description, choices: choices.map(([choiceId, text]) => ({ id: choiceId, text })) })
+const year2G2Offer = (career, phase) => {
+  const raceId = HIGH_YEAR2_G2_BY_GROWTH[phase][career.growthType.id]
+  const race = HIGH_YEAR2_RACES[raceId]
+  return special(`high2_g2_${phase}`, `${race.raceName} 출전 제안`, `${race.distance} G2 무대가 열립니다. 성장 흐름을 점검하기 위해 출전하시겠습니까?`, [['ENTER', 'G2에 출전한다'], ['SKIP', '훈련에 집중한다']])
+}
 const YEAR3_SPECIALS = {
+  stayer_prep: () => special('high3_stayer_prep', '장거리 조정전', '천황상(봄)을 앞두고 한신대상전에 출전하시겠습니까?', [['ENTER', 'G2에 출전한다'], ['SKIP', '훈련에 집중한다']]),
   spring_first_g1: () => special('high3_spring_first_g1', '봄 첫 G1', '시니어 시즌의 첫 목표를 결정할 시간입니다.', [['OSAKA', '오사카배에 도전한다'], ['PREPARE', '천황상(봄)을 준비한다']]),
   sprint_mile: () => special('high3_sprint_mile', '1600m까지 영역을 넓힐 것인가?', '봄의 마일 G1에 도전할지 결정합니다.', [['YES', '야스다 기념에 도전한다'], ['NO', '단거리 노선에 집중한다']]),
   spring_mile: () => special('high3_spring_mile', '봄 마일 왕좌', '봄의 두 마일 G1 중 목표를 선택합니다.', [['VICTORIA', '빅토리아 마일에 출전한다'], ['YASUDA', '야스다 기념에 출전한다'], ['BOTH', '두 경기 모두 도전한다']]),
@@ -287,7 +305,7 @@ export function finishHighSchoolLegend(career, rng = Math.random) {
     const race = next.highSchoolState.debutStatus === 'SUCCESS' && next.growthType.id !== 'sprinter' ? createG1Race(next) : null
     return race ? { ...next, highSchoolState: { ...next.highSchoolState, pendingRace: race } } : finalizeHighTurn(next, rng)
   }
-  if (turn === 19) return finalizeHighTurn(next, rng)
+  if (turn === 19) return beginYear2PostEvent(next, turn, rng)
   if (turn === 23) return beginYear3PostEvent(next, turn, rng)
   return finalizeHighTurn(next, rng)
 }
@@ -304,6 +322,13 @@ export function resolveHighYear2Special(career, choiceId, rng = Math.random) {
     }
     next.currentTurnHistory.special = { id: special.id, title: special.title, selectedRoute: choiceId, selectedChoiceText: special.choices.find(({ id }) => id === choiceId).text }
     next.currentTurnHistory.seasonRoute = choiceId
+    return { ...next, highYear2: { ...next.highYear2, pendingSpecial: year2G2Offer(next, 'early') } }
+  }
+  if (special.id === 'high2_g2_early' || special.id === 'high2_g2_late') {
+    const phase = special.id.endsWith('early') ? 'early' : 'late'
+    const next = { ...career, highYear2: { ...career.highYear2, pendingSpecial: null } }
+    next.currentTurnHistory.special = { id: special.id, title: special.title, selectedChoiceText: special.choices.find(({ id }) => id === choiceId).text }
+    if (choiceId === 'ENTER') return queueYear2Races(next, [HIGH_YEAR2_G2_BY_GROWTH[phase][career.growthType.id]])
     return finalizeHighTurn(next, rng)
   }
   if (special.id === 'high2_derby_dream') {
@@ -332,8 +357,9 @@ export function resolveHighYear3Special(career, choiceId, rng = Math.random) {
     const type = next.growthType.id
     if (type === 'sprinter') append([{ type: 'RACE', raceId: 'takamatsunomiya_kinen' }])
     if (type === 'router') append([{ type: 'RACE', raceId: 'osaka_hai' }])
-    if (type === 'stayer') append([{ type: 'SPECIAL', specialId: 'spring_first_g1' }])
+    if (type === 'stayer') append([{ type: 'SPECIAL', specialId: 'stayer_prep' }])
   }
+  if (pending.id === 'high3_stayer_prep') append([...(choiceId === 'ENTER' ? [{ type: 'RACE', raceId: 'hanshin_daishoten' }] : []), { type: 'SPECIAL', specialId: 'spring_first_g1' }])
   if (pending.id === 'high3_spring_first_g1' && choiceId === 'OSAKA') append([{ type: 'RACE', raceId: 'osaka_hai' }])
   if (pending.id === 'high3_sprint_mile' && choiceId === 'YES') append([{ type: 'RACE', raceId: 'yasuda_kinen' }])
   if (pending.id === 'high3_spring_mile') {
@@ -397,6 +423,7 @@ export function resolveInitialTeamSelection(career, teamId, rng = Math.random) {
 export function resolveHighSchoolRace(career, choiceId = 'run', rng = Math.random) {
   const race = career.highSchoolState?.pendingRace
   if (!race || career.highSchoolState.pendingRaceResult) return career
+  if (choiceId === 'ineligible' && race.minimumStamina && career.stats.stamina < race.minimumStamina) return { ...career, highSchoolState: { ...career.highSchoolState, pendingRaceResult: { ...race, result: 'INELIGIBLE', finishPosition: null, won: false } } }
   if (race.raceType === 'G1' && choiceId === 'decline') return { ...career, highSchoolState: { ...career.highSchoolState, pendingRaceResult: { ...race, result: 'DECLINED', finishPosition: null, won: false } } }
   const racePlan = createRacePlan({ race, stats: career.stats, condition: career.condition, runningStyle: career.runningStyle ?? 'SENKO', rng })
   const finishPosition = racePlan.finalPosition
@@ -405,6 +432,7 @@ export function resolveHighSchoolRace(career, choiceId = 'run', rng = Math.rando
   const result = {
     ...race,
     raceSeed: racePlan.raceSeed,
+    fieldStrength: racePlan.fieldStrength,
     finishPosition,
     won,
     result: isDebut ? (finishPosition <= 5 ? 'SUCCESS' : 'FAILURE') : won ? 'WIN' : finishPosition <= 3 ? 'PLACE' : finishPosition <= 6 ? 'MIDFIELD' : 'LOW',
@@ -473,10 +501,10 @@ export function dismissHighYear3Achievement(career, rng = Math.random) {
 }
 
 function finishYear2Race(career, race, rng) {
-  let next = applyRaceRewards(career, race)
+  let next = race.result === 'INELIGIBLE' ? career : applyRaceRewards(career, race)
   next.currentTurnHistory = structuredClone(career.currentTurnHistory)
-  writeRaceHistory(next, race)
-  const result = { raceId: race.raceId, raceName: race.raceName, turn: career.turnIndex + 1, distance: race.distance, grade: race.grade ?? 'G1', runningStyle: career.runningStyle, finishPosition: race.finishPosition, won: Boolean(race.won) }
+  if (race.result !== 'INELIGIBLE') writeRaceHistory(next, race)
+  const result = { raceId: race.raceId, raceName: race.raceName, turn: career.turnIndex + 1, distance: race.distance, grade: race.grade ?? 'G1', runningStyle: career.runningStyle, finishPosition: race.finishPosition, won: Boolean(race.won), skipped: race.result === 'INELIGIBLE' }
   next = {
     ...next,
     highYear2: { ...next.highYear2, raceResults: { ...next.highYear2.raceResults, [race.raceId]: result }, racesCompletedThisTurn: next.highYear2.racesCompletedThisTurn + 1 },
@@ -494,10 +522,10 @@ function finishYear2Race(career, race, rng) {
 }
 
 function finishYear3Race(career, race, rng) {
-  let next = applyRaceRewards(career, race)
+  let next = race.result === 'INELIGIBLE' ? career : applyRaceRewards(career, race)
   next.currentTurnHistory = structuredClone(career.currentTurnHistory)
-  writeRaceHistory(next, race)
-  const result = { raceId: race.raceId, raceName: race.raceName, turn: career.turnIndex + 1, distance: race.distance, grade: race.grade ?? 'G1', runningStyle: career.runningStyle, finishPosition: race.finishPosition, won: Boolean(race.won) }
+  if (race.result !== 'INELIGIBLE') writeRaceHistory(next, race)
+  const result = { raceId: race.raceId, raceName: race.raceName, turn: career.turnIndex + 1, distance: race.distance, grade: race.grade ?? 'G1', runningStyle: career.runningStyle, finishPosition: race.finishPosition, won: Boolean(race.won), skipped: race.result === 'INELIGIBLE' }
   const racesCompletedThisTurn = next.highYear3.racesCompletedThisTurn + 1
   next = {
     ...next,
@@ -512,12 +540,12 @@ function finishYear3Race(career, race, rng) {
 export function finishHighSchoolRace(career, rng = Math.random) {
   const race = career.highSchoolState?.pendingRaceResult
   if (!race) return career
-  if (race.result !== 'DECLINED' && !career.highSchoolState?.racePlan?.completed) return career
+  if (!['DECLINED', 'INELIGIBLE'].includes(race.result) && !career.highSchoolState?.racePlan?.completed) return career
   if (career.turnIndex >= 20 && career.turnIndex <= 23) return finishYear3Race(career, race, rng)
   if (career.turnIndex >= 16 && career.turnIndex <= 19) return finishYear2Race(career, race, rng)
-  let next = race.result === 'DECLINED' ? career : applyRaceRewards(career, race)
+  let next = ['DECLINED', 'INELIGIBLE'].includes(race.result) ? career : applyRaceRewards(career, race)
   next.currentTurnHistory = structuredClone(career.currentTurnHistory)
-  writeRaceHistory(next, race)
+  if (race.result !== 'INELIGIBLE') writeRaceHistory(next, race)
   const highSchoolState = { ...next.highSchoolState, pendingRaceResult: race, debutStatus: race.raceType === 'DEBUT' ? (race.result === 'SUCCESS' ? 'SUCCESS' : 'FAILED_ONCE') : next.highSchoolState.debutStatus, debutAttempts: race.raceType === 'DEBUT' ? race.attempt : next.highSchoolState.debutAttempts, achievements: race.raceType === 'G1' && race.won ? [...next.highSchoolState.achievements, race] : next.highSchoolState.achievements }
   return finalizeHighTurn({ ...next, highSchoolState }, rng)
 }

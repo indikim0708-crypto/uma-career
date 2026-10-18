@@ -10,4 +10,5 @@ export const HIGH_YEAR3_RACES = {
   mile_championship: { raceId: 'mile_championship', raceName: '마일 챔피언십', distance: '1600m', grade: 'G1' },
   japan_cup: { raceId: 'japan_cup', raceName: '재팬 컵', distance: '2400m', grade: 'G1' },
   arima_kinen: { raceId: 'arima_kinen', raceName: '아리마 기념', distance: '2500m', grade: 'G1' },
+  hanshin_daishoten: { raceId: 'hanshin_daishoten', raceName: '한신대상전', distance: '3000m', grade: 'G2' },
 }

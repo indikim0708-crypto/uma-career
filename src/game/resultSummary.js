@@ -1,7 +1,7 @@
 import { HIGH_YEAR2_ROUTE_LABELS } from '../data/highSchoolYear2Races.js'
 import { getMiddleSchoolById } from '../data/middleSchools.js'
 import { getRunningStyle } from '../data/runningStyles.js'
-import { STATS } from '../data/stats.js'
+import { MAX_STAT, STATS } from '../data/stats.js'
 import { TEAM_BY_ID } from '../data/highSchoolTeams.js'
 
 function chronologicalHistory(history = []) {
@@ -117,7 +117,7 @@ export function buildCareerResultSummary(career) {
       runningStyle: runningStyle?.label ?? null,
       finalTeam: TEAM_BY_ID[career.teamState?.currentTeamId]?.name ?? null,
     },
-    finalStats: STATS.map(({ id, label }) => ({ id, label, value: career.stats?.[id] ?? 0, maximum: 120 })),
+    finalStats: STATS.map(({ id, label }) => ({ id, label, value: career.stats?.[id] ?? 0, maximum: MAX_STAT })),
     schoolHistory,
     careerPath,
     teamCareer,

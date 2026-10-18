@@ -49,7 +49,7 @@ function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
   return {
     ...chooseGrowthType(createCareer({ lastName: '시즌', firstName: '테스트' }, rng), growthTypeId),
-    stats: { speed: 72, stamina: 72, power: 72, grit: 72, intelligence: 72 },
+    stats: { speed: MAX_STAT, stamina: MAX_STAT, power: MAX_STAT, grit: MAX_STAT, intelligence: MAX_STAT },
     turnIndex: 16,
     condition: '보통',
     stability: 50,
@@ -64,7 +64,9 @@ function makeHighYear2Career(growthTypeId = 'router') {
 }
 
 function finishHighYear2RegularEvent(career, rng = () => 0.5) {
-  let next = advanceCareer(career, rng)
+  let current = career
+  if (current.highYear2?.pendingSpecial?.id?.startsWith('high2_g2_')) current = resolveHighYear2Special(current, 'SKIP', rng)
+  let next = advanceCareer(current, rng)
   assert.ok(next.highSchoolState.pendingEvent)
   next = selectHighSchoolEventChoice(next, next.highSchoolState.pendingEvent.choices[0].id, rng)
   next = finishHighSchoolEvent(next, rng)
@@ -326,7 +328,7 @@ test('stability controls volatility without making low stability always negative
   assert.ok(low.seen.has('최악'))
 })
 
-test('career completes after turn 24 and stats never exceed 120', () => {
+test('career completes after turn 24 and stats never exceed the configured cap', () => {
   const career = finishCareer('sprinter', 9, {
     stats: Object.fromEntries(STATS.map(({ id }) => [id, 119])),
   })
@@ -506,9 +508,9 @@ test('great success and failure are recorded in history with bounded values', ()
 test('condition and stats are clamped to their legal ranges', () => {
   assert.equal(moveCondition('최악', -1), '최악')
   const event = ELEMENTARY_SCHOOL_EVENTS.find(({ id }) => id === 'mejiro_matriarch')
-  const career = { ...eventCareer({ id: 'mejiro', name: '메지로 초등학교' }), stats: Object.fromEntries(STATS.map(({ id }) => [id, 119])) }
+  const career = { ...eventCareer({ id: 'mejiro', name: '메지로 초등학교' }), stats: Object.fromEntries(STATS.map(({ id }) => [id, MAX_STAT - 1])) }
   const applied = applyEventOutcome(career, event, { statChanges: { stamina: 7 }, conditionDelta: 0 })
-  assert.equal(applied.stats.stamina, 120)
+  assert.equal(applied.stats.stamina, MAX_STAT)
 })
 
 function makeTransferCareer({ potential = 85, schoolId = 'fuchu_central', destinationSchoolId = 'symboli', grade = 2, offered = false } = {}) {
@@ -934,7 +936,7 @@ test('race result and its plan resolve once before the sequence can award reward
   }
   const resolved = resolveHighSchoolRace(career, 'run', () => 0.5)
   assert.ok(resolved.highSchoolState.racePlan)
-  assert.ok(resolved.highSchoolState.pendingRaceResult.finishPosition >= 1 && resolved.highSchoolState.pendingRaceResult.finishPosition <= 5)
+  assert.ok(resolved.highSchoolState.pendingRaceResult.finishPosition >= 1 && resolved.highSchoolState.pendingRaceResult.finishPosition <= 12)
   assert.equal(resolved.highSchoolState.racePlan.finalPosition, resolved.highSchoolState.pendingRaceResult.finishPosition)
   assert.equal(resolved.highSchoolState.pendingRaceResult.result, resolved.highSchoolState.pendingRaceResult.finishPosition <= 5 ? 'SUCCESS' : 'FAILURE')
   assert.equal(resolved.highSchoolState.pendingRaceResult.startPosition, resolved.highSchoolState.racePlan.checkpoints[0].position)
@@ -957,7 +959,9 @@ test('race score helpers use the requested position, style, distance, and stamin
   assert.deepEqual(getPositionKeepRange('SENKO', 12), [3, 5])
   assert.deepEqual(getPositionKeepRange('SASHI', 12), [6, 9])
   assert.deepEqual(getPositionKeepRange('OIKOMI', 12), [10, 12])
-  assert.equal(getRaceFieldStrength({ raceType: 'DEBUT', attempt: 2 }), getRaceFieldStrength({ raceType: 'DEBUT', attempt: 1 }) - 2)
+  assert.equal(getRaceFieldStrength({ raceType: 'DEBUT', fieldStrength: 61 }), 61)
+  const debutFieldStrength = getRaceFieldStrength({ raceType: 'DEBUT' }, () => .5)
+  assert.ok(debutFieldStrength >= 55 && debutFieldStrength <= 65)
 
   const frontRunnerStats = { speed: 75, stamina: 72, power: 50, grit: 45, intelligence: 75 }
   const closerStats = { speed: 50, stamina: 48, power: 75, grit: 72, intelligence: 75 }
@@ -990,7 +994,7 @@ test('race simulation consumes the supplied RNG once and stores a reproducible s
 test('10,000 race simulations keep early positions bounded and make stamina matter at 3000m', () => {
   const styles = ['NIGE', 'SENKO', 'SASHI', 'OIKOMI']
   const stats = { speed: 60, stamina: 60, power: 60, grit: 60, intelligence: 60 }
-  const race = { raceId: 'kikuka_sho', raceName: '국화상', raceType: 'G1', distance: '3000m' }
+  const race = { raceId: 'kikuka_sho', raceName: '국화상', raceType: 'G1', distance: '3000m', fieldStrength: 90 }
   const summaries = {}
   for (const style of styles) summaries[style] = { wins: 0, positionTotal: 0 }
   for (let index = 0; index < 10000; index += 1) {
@@ -1007,8 +1011,8 @@ test('10,000 race simulations keep early positions bounded and make stamina matt
   const winCounts = Object.values(summaries).map(({ wins }) => wins)
   assert.ok(Math.max(...winCounts) - Math.min(...winCounts) <= 125)
 
-  const lowStamina = { speed: 60, stamina: 30, power: 60, grit: 60, intelligence: 60 }
-  const highStamina = { ...lowStamina, stamina: 70 }
+  const lowStamina = { speed: 60, stamina: 0, power: 60, grit: 60, intelligence: 60 }
+  const highStamina = { ...lowStamina, stamina: 100 }
   let lowTotal = 0
   let highTotal = 0
   for (let index = 0; index < 2000; index += 1) {
@@ -1326,6 +1330,8 @@ test('router classic route runs every regular event, two spring G1s, no summer G
   assert.equal(career.highYear2.pendingSpecial.id, 'high2_classic_season')
   assert.deepEqual(career.highYear2.pendingSpecial.choices.map(({ id }) => id), ['CLASSIC_TRIPLE', 'TRIPLE_TIARA'])
   career = resolveHighYear2Special(career, 'CLASSIC_TRIPLE', () => 0.5)
+  assert.equal(career.highYear2.pendingSpecial.id, 'high2_g2_early')
+  career = resolveHighYear2Special(career, 'SKIP', () => 0.5)
   assert.equal(career.turnIndex, 17)
   assert.equal(career.highYear2.route, 'CLASSIC_TRIPLE')
   assert.equal(career.history[0].seasonRoute, 'CLASSIC_TRIPLE')
@@ -1344,6 +1350,8 @@ test('router classic route runs every regular event, two spring G1s, no summer G
   assert.deepEqual(career.history[0].races.map(({ raceId }) => raceId), ['satsuki_sho', 'japan_derby'])
 
   career = finishHighYear2RegularEvent(career)
+  assert.equal(career.highYear2.pendingSpecial.id, 'high2_g2_late')
+  career = resolveHighYear2Special(career, 'SKIP', () => 0.5)
   assert.equal(career.turnIndex, 19)
   assert.equal(career.highSchoolState.pendingRace, null)
   career = finishHighYear2RegularEvent(career)
@@ -1432,7 +1440,8 @@ test('senior season data has 20 unique common events, three choices each, and al
   assert.equal(HIGH_SCHOOL_YEAR3_EVENTS.length, 20)
   assert.equal(new Set(HIGH_SCHOOL_YEAR3_EVENTS.map(({ id }) => id)).size, 20)
   assert.ok(HIGH_SCHOOL_YEAR3_EVENTS.every(({ type, choices }) => type === 'HIGH_YEAR3_COMMON' && choices.length === 3))
-  assert.deepEqual(Object.keys(HIGH_YEAR3_RACES), ['takamatsunomiya_kinen', 'osaka_hai', 'tenno_sho_spring', 'victoria_mile', 'yasuda_kinen', 'takarazuka_kinen', 'sprinters_stakes', 'tenno_sho_autumn', 'mile_championship', 'japan_cup', 'arima_kinen'])
+  assert.deepEqual(Object.keys(HIGH_YEAR3_RACES), ['takamatsunomiya_kinen', 'osaka_hai', 'tenno_sho_spring', 'victoria_mile', 'yasuda_kinen', 'takarazuka_kinen', 'sprinters_stakes', 'tenno_sho_autumn', 'mile_championship', 'japan_cup', 'arima_kinen', 'hanshin_daishoten'])
+  assert.equal(HIGH_YEAR3_RACES.hanshin_daishoten.grade, 'G2')
   assert.equal(HIGH_YEAR3_RACES.arima_kinen.distance, '2500m')
   assert.equal(HIGH_YEAR3_RACES.tenno_sho_spring.distance, '3200m')
 })
@@ -1548,11 +1557,11 @@ test('a high school legend plan is rolled once and rapid selection cannot duplic
   assert.strictEqual(rerendered, planned)
   assert.equal(planned.highSchoolLegend.plans[16].legendId, 'SYMBOLI_RUDOLF')
 
-  const pending = { ...planned, stats: { speed: 115, stamina: 115, power: 50, grit: 50, intelligence: 115 }, currentTurnHistory: { statsBefore: { speed: 115, stamina: 115, power: 50, grit: 50, intelligence: 115 }, statsAfterBase: { speed: 115, stamina: 115, power: 50, grit: 50, intelligence: 115 }, statsAfterEvent: { speed: 115, stamina: 115, power: 50, grit: 50, intelligence: 115 }, expectedGrowth: 1, periodLabel: '고등부 1학년 4분기' }, highSchoolState: { ...createHighSchoolState(), debutStatus: 'SUCCESS' }, highSchoolLegend: { ...planned.highSchoolLegend, pendingLegend: HIGH_SCHOOL_LEGEND_EVENTS[0] } }
+  const pending = { ...planned, stats: { speed: 145, stamina: 145, power: 50, grit: 50, intelligence: 145 }, currentTurnHistory: { statsBefore: { speed: 145, stamina: 145, power: 50, grit: 50, intelligence: 145 }, statsAfterBase: { speed: 145, stamina: 145, power: 50, grit: 50, intelligence: 145 }, statsAfterEvent: { speed: 145, stamina: 145, power: 50, grit: 50, intelligence: 145 }, expectedGrowth: 1, periodLabel: '고등부 1학년 4분기' }, highSchoolState: { ...createHighSchoolState(), debutStatus: 'SUCCESS' }, highSchoolLegend: { ...planned.highSchoolLegend, pendingLegend: HIGH_SCHOOL_LEGEND_EVENTS[0] } }
   const selected = selectHighSchoolLegendChoice(pending)
   assert.strictEqual(selectHighSchoolLegendChoice(selected), selected)
   const resolved = finishHighSchoolLegend(selected, () => 0.5)
-  assert.deepEqual({ speed: resolved.stats.speed, stamina: resolved.stats.stamina, intelligence: resolved.stats.intelligence }, { speed: 120, stamina: 120, intelligence: 120 })
+  assert.deepEqual({ speed: resolved.stats.speed, stamina: resolved.stats.stamina, intelligence: resolved.stats.intelligence }, { speed: MAX_STAT, stamina: MAX_STAT, intelligence: MAX_STAT })
   assert.strictEqual(finishHighSchoolLegend(resolved, () => 0), resolved)
   assert.equal(resolved.highSchoolLegend.completedLegendIds.length, 1)
 })

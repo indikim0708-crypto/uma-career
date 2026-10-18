@@ -8,6 +8,17 @@ export const HIGH_YEAR2_RACES = {
   mile_championship: { raceId: 'mile_championship', raceName: '마일 챔피언십', distance: '1600m', grade: 'G1' },
   kikuka_sho: { raceId: 'kikuka_sho', raceName: '국화상', distance: '3000m', grade: 'G1' },
   shuka_sho: { raceId: 'shuka_sho', raceName: '추화상', distance: '2000m', grade: 'G1' },
+  new_zealand_trophy: { raceId: 'new_zealand_trophy', raceName: '뉴질랜드 트로피', distance: '1600m', grade: 'G2' },
+  yayoi_sho: { raceId: 'yayoi_sho', raceName: '야요이상', distance: '2000m', grade: 'G2' },
+  aoba_sho: { raceId: 'aoba_sho', raceName: '아오바상', distance: '2400m', grade: 'G2' },
+  centaur_stakes: { raceId: 'centaur_stakes', raceName: '센토어 스테이크스', distance: '1200m', grade: 'G2' },
+  fuji_stakes: { raceId: 'fuji_stakes', raceName: '후지 스테이크스', distance: '1600m', grade: 'G2' },
+  kobe_shimbun_hai: { raceId: 'kobe_shimbun_hai', raceName: '고베신문배', distance: '2400m', grade: 'G2' },
+}
+
+export const HIGH_YEAR2_G2_BY_GROWTH = {
+  early: { sprinter: 'new_zealand_trophy', miler: 'new_zealand_trophy', router: 'yayoi_sho', stayer: 'aoba_sho' },
+  late: { sprinter: 'centaur_stakes', miler: 'fuji_stakes', router: 'kobe_shimbun_hai', stayer: 'kobe_shimbun_hai' },
 }
 
 export const HIGH_YEAR2_ROUTE_LABELS = {

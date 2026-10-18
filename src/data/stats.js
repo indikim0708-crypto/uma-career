@@ -1,4 +1,4 @@
-export const MAX_STAT = 120
+export const MAX_STAT = 150
 
 export const STATS = [
   { id: 'speed', label: '스피드' },

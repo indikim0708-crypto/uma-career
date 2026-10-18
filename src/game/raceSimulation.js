@@ -1,18 +1,16 @@
 import { RACE_MESSAGES, RACE_PHASES } from '../data/raceMessages.js'
 import {
   CONDITION_MODIFIERS,
-  DEBUT_RETRY_FIELD_REDUCTION,
   DISTANCE_WEIGHTS,
   PHASE_WEIGHTS,
   POSITION_KEEP_RANGES,
   POSITION_KEEP_WEIGHTS,
-  RACE_FIELD_STRENGTH,
+  FIELD_STRENGTH_RANGES,
   REQUIRED_STAMINA,
   RUNNING_STYLE_WEIGHTS,
   STYLE_BASE_SHIFTS,
 } from '../data/raceBalance.js'
 
-const HIGH_YEAR2_RACE_IDS = new Set(['nhk_mile_cup', 'satsuki_sho', 'japan_derby', 'oka_sho', 'oaks', 'sprinters_stakes', 'mile_championship', 'kikuka_sho', 'shuka_sho', 'takamatsunomiya_kinen', 'osaka_hai', 'tenno_sho_spring', 'victoria_mile', 'yasuda_kinen', 'takarazuka_kinen', 'tenno_sho_autumn', 'japan_cup', 'arima_kinen'])
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
 const weightedScore = (stats, weights) => Object.entries(weights).reduce((sum, [id, weight]) => sum + stats[id] * weight, 0)
 
@@ -85,10 +83,17 @@ export function getPerformanceRankModifier(performanceDelta, phase = 'FINAL_STRA
   return phase === 'MIDDLE' ? clamp(modifier, -1, 1) : modifier
 }
 
-export function getRaceFieldStrength(race) {
+function fieldStrengthRange(race) {
+  if (Array.isArray(race.fieldStrengthRange)) return race.fieldStrengthRange
+  if (race.raceType === 'DEBUT') return FIELD_STRENGTH_RANGES.DEBUT
+  if (race.raceType === 'G2') return FIELD_STRENGTH_RANGES.LATE_G2
+  return FIELD_STRENGTH_RANGES.HIGH_YEAR1_G1
+}
+
+export function getRaceFieldStrength(race, rng = Math.random) {
   if (Number.isFinite(race.fieldStrength)) return race.fieldStrength
-  if (race.raceType === 'DEBUT') return RACE_FIELD_STRENGTH.DEBUT - (race.attempt === 2 ? DEBUT_RETRY_FIELD_REDUCTION : 0)
-  return HIGH_YEAR2_RACE_IDS.has(race.raceId) ? RACE_FIELD_STRENGTH.HIGH_YEAR2_G1 : RACE_FIELD_STRENGTH.HIGH_YEAR1_G1
+  const [minimum, maximum] = fieldStrengthRange(race)
+  return minimum + Math.floor(rng() * (maximum - minimum + 1))
 }
 
 function trendFor(previousPosition, position) {
@@ -111,7 +116,7 @@ export function simulateRace({ race, stats, condition = '보통', runningStyle =
     FINAL_CORNER: noise(raceRng),
     FINAL_STRAIGHT: noise(raceRng),
   }
-  const fieldStrength = getRaceFieldStrength(race)
+  const fieldStrength = getRaceFieldStrength(race, raceRng)
   const positionKeepRange = getPositionKeepRange(runningStyle, fieldSize)
   const positionKeepScore = calculatePositionKeepScore(stats)
   const styleFitScore = calculateStyleFitScore(stats, runningStyle)

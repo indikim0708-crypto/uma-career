@@ -19,7 +19,7 @@ function getRankWeights(candidateCount) {
   return [0.4, 0.25, 0.15, 0.1, ...Array(candidateCount - 4).fill(0.1 / (candidateCount - 4))]
 }
 
-function rankCandidates(candidates, rng) {
+export function rankNonRacerEndingCandidates(candidates, rng = Math.random) {
   const scoreGroups = new Map()
   for (const candidate of candidates) {
     const group = scoreGroups.get(candidate.score) ?? []
@@ -39,21 +39,23 @@ function rankCandidates(candidates, rng) {
     })
 }
 
-function chooseRankedCandidate(candidates, rng) {
-  const ranked = rankCandidates(candidates, rng)
+export function selectRankedNonRacerEnding(candidates, rng = Math.random) {
+  const ranked = rankNonRacerEndingCandidates(candidates, rng)
   const weights = getRankWeights(ranked.length)
   const roll = rng()
   let cumulative = 0
 
   for (let index = 0; index < ranked.length; index += 1) {
     cumulative += weights[index]
-    if (roll < cumulative || index === ranked.length - 1) return ranked[index]
+    if (roll < cumulative || index === ranked.length - 1) {
+      return { selected: ranked[index], ranked, weights }
+    }
   }
 
-  return ranked.at(-1)
+  return { selected: ranked.at(-1), ranked, weights }
 }
 
-export function resolveNonRacerEnding(career, rng = Math.random) {
+export function getNonRacerEndingCandidates(career) {
   const { speed, stamina, power, grit, intelligence } = career.stats
   const counts = getNonRacerEventCounts(career.history)
   const average = statValues(career).reduce((sum, value) => sum + value, 0) / 5
@@ -81,7 +83,12 @@ export function resolveNonRacerEnding(career, rng = Math.random) {
     grit >= 40 && average >= 35 && ['LOCAL_SPORTS_INSTRUCTOR', grit * 0.8 + average + counts.helping * 6],
   ].filter(Boolean).map(([id, score]) => ({ ...NON_RACER_ENDINGS[id], score }))
 
-  if (!candidates.length) return { ...NON_RACER_ENDINGS.ORDINARY_STUDENT, score: 0, counts, statsAverage: average, statSpread: spread }
-  const selected = chooseRankedCandidate(candidates, rng)
-  return { ...selected, counts, statsAverage: average, statSpread: spread }
+  return { candidates, counts, statsAverage: average, statSpread: spread }
+}
+
+export function resolveNonRacerEnding(career, rng = Math.random) {
+  const { candidates, counts, statsAverage, statSpread } = getNonRacerEndingCandidates(career)
+  if (!candidates.length) return { ...NON_RACER_ENDINGS.ORDINARY_STUDENT, score: 0, counts, statsAverage, statSpread }
+  const { selected } = selectRankedNonRacerEnding(candidates, rng)
+  return { ...selected, counts, statsAverage, statSpread }
 }

@@ -17,6 +17,7 @@ import { ensureHighSchoolLegendPlan, getHighSchoolLegendDue } from './highSchool
 import { applyTeamTurnPlan, createInitialTeamOffers, resolveInitialTeamOffer } from './highSchoolTeam.js'
 import { RUNNING_STYLE_RECOMMENDATION_REASONS } from '../data/runningStyleRecommendationBalance.js'
 import { recommendRunningStyle } from './runningStyleRecommendation.js'
+import { getHighSchoolPotentialMultiplier, scaleHighSchoolStatChanges } from './highSchoolGrowth.js'
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value))
 const TOP_G1_RACE_IDS = new Set(['tenno_sho_spring', 'tenno_sho_autumn', 'japan_cup', 'arima_kinen'])
@@ -117,9 +118,10 @@ function routeForGrowthType(growthTypeId) {
   return { sprinter: 'SPRINT', miler: 'MILE', stayer: 'LONG' }[growthTypeId] ?? null
 }
 
-function applyChanges(career, changes, conditionDelta = 0) {
+function applyChanges(career, changes, conditionDelta = 0, scaleForPotential = true) {
+  const appliedChanges = scaleForPotential ? scaleHighSchoolStatChanges(changes, career.potential) : changes
   const stats = { ...career.stats }
-  for (const [id, amount] of Object.entries(changes)) stats[id] = clamp(stats[id] + amount, 0, MAX_STAT)
+  for (const [id, amount] of Object.entries(appliedChanges)) stats[id] = clamp(stats[id] + amount, 0, MAX_STAT)
   return { ...career, stats, condition: moveCondition(career.condition, conditionDelta) }
 }
 
@@ -179,7 +181,7 @@ function awaitableApplyBaseGrowth(career, rng) {
     for (const [id, weight] of entries) { roll -= weight; if (roll < 0) { chosen = id; break } }
     growth[chosen] += 1
   }
-  const multiplier = career.potential < 20 ? .9 : career.potential < 40 ? .95 : career.potential < 60 ? 1 : career.potential < 80 ? 1.05 : career.potential < 95 ? 1.1 : 1.15
+  const multiplier = getHighSchoolPotentialMultiplier(career.potential)
   return { stats: Object.fromEntries(STATS.map(({ id }) => [id, Math.min(MAX_STAT, career.stats[id] + growth[id] * multiplier)])), expectedGrowth: (turn.baseGrowth * STATS.length + turn.bonusPoints) * multiplier }
 }
 
@@ -262,9 +264,10 @@ function beginYear3PostEvent(career, turn, rng) {
 export function finishHighSchoolEvent(career, rng = Math.random) {
   const { pendingEvent: event, pendingOutcome: outcome } = career.highSchoolState
   if (!event || !outcome) return career
+  const statChanges = scaleHighSchoolStatChanges(outcome.statChanges, career.potential)
   let next = applyChanges(career, outcome.statChanges, outcome.conditionDelta)
   next.currentTurnHistory = structuredClone(career.currentTurnHistory)
-  next.currentTurnHistory.event = { eventId: event.id, eventName: event.name, eventType: event.type, situation: event.situation, selectedChoiceId: outcome.choiceId, selectedChoiceText: event.choices.find(({ id }) => id === outcome.choiceId).text, outcomeType: outcome.type, outcomeText: outcome.text, statChanges: outcome.statChanges, conditionDelta: outcome.conditionDelta }
+  next.currentTurnHistory.event = { eventId: event.id, eventName: event.name, eventType: event.type, situation: event.situation, selectedChoiceId: outcome.choiceId, selectedChoiceText: event.choices.find(({ id }) => id === outcome.choiceId).text, outcomeType: outcome.type, outcomeText: outcome.text, statChanges, conditionDelta: outcome.conditionDelta }
   next.currentTurnHistory.statsAfterEvent = { ...next.stats }
   const turn = next.turnIndex + 1
   const retry = turn === 15 && next.highSchoolState.debutStatus === 'FAILED_ONCE'
@@ -292,7 +295,7 @@ export function finishHighSchoolLegend(career, rng = Math.random) {
   const event = career.highSchoolLegend?.pendingLegend
   const outcome = career.highSchoolLegend?.pendingOutcome
   if (!event || !outcome) return career
-  let next = applyChanges(career, outcome.statChanges, 0)
+  let next = applyChanges(career, outcome.statChanges, 0, false)
   next.currentTurnHistory = structuredClone(career.currentTurnHistory)
   next.currentTurnHistory.legendEvent = {
     type: 'LEGEND', eventId: event.id, legendId: event.legendId, legendName: event.characterName, characterName: event.characterName, title: event.title, portrait: event.portrait, quote: event.quote, selectedChoiceText: event.choices[0].text, outcomeText: '전설의 조언을 마음에 새겼습니다.', statChanges: { ...outcome.statChanges }, conditionDelta: 0,

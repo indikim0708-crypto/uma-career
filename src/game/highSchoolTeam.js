@@ -1,6 +1,7 @@
 import { INITIAL_TEAM_IDS, TEAM_BY_ID, TEAM_SUPPORT_MESSAGES, TEAM_TRANSFER_CHECKPOINTS } from '../data/highSchoolTeams.js'
 import { MAX_STAT, STATS } from '../data/stats.js'
 import { moveCondition } from './eventResolver.js'
+import { scaleHighSchoolStatChanges } from './highSchoolGrowth.js'
 
 const INITIAL_GROWTH = {
   sprinter: { TEAM_SPICA: 8, TEAM_ASELLA: 6, TEAM_SIRIUS: 4, TEAM_CAPELLA: 2, TEAM_CANOPUS: 2 },
@@ -108,13 +109,14 @@ export function applyTeamTurnPlan(career, rng = Math.random) {
   const turn = career.turnIndex + 1
   if (state.turnPlans[turn]?.resolved) return career
   const plan = state.turnPlans[turn] ?? createTeamTurnPlan({ ...career, teamState: state }, rng)
+  const appliedStatChanges = scaleHighSchoolStatChanges(plan.training.statChanges, career.potential)
   const stats = { ...career.stats }
-  for (const [id, amount] of Object.entries(plan.training.statChanges)) stats[id] = Math.min(MAX_STAT, stats[id] + amount)
+  for (const [id, amount] of Object.entries(appliedStatChanges)) stats[id] = Math.min(MAX_STAT, stats[id] + amount)
   const resolvedPlan = { ...plan, resolved: true }
   const currentTurnHistory = structuredClone(career.currentTurnHistory)
-  currentTurnHistory.teamGrowth = { ...plan.training.statChanges }
+  currentTurnHistory.teamGrowth = { ...appliedStatChanges }
   currentTurnHistory.statsAfterTeam = { ...stats }
-  currentTurnHistory.teamTraining = plan.teamId ? { teamId: plan.teamId, teamName: TEAM_BY_ID[plan.teamId].name, points: plan.training.points, statChanges: { ...plan.training.statChanges } } : null
+  currentTurnHistory.teamTraining = plan.teamId ? { teamId: plan.teamId, teamName: TEAM_BY_ID[plan.teamId].name, points: plan.training.points, statChanges: { ...appliedStatChanges } } : null
   currentTurnHistory.teamSupport = plan.teamId ? { ...plan.conditionSupport } : null
   return { ...career, stats, condition: plan.conditionSupport.conditionAfter, currentTurnHistory, teamState: { ...state, teamTenureTurnCount: plan.teamId ? plan.tenureTurn : state.teamTenureTurnCount, turnPlans: { ...state.turnPlans, [turn]: resolvedPlan } } }
 }

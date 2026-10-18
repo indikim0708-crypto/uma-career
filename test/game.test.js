@@ -45,6 +45,7 @@ import { buildCareerResultSummary, getBaseCareerTitle, getSeasonCareerTitle, isF
 import { buildResultImageFilename, RESULT_SUMMARY_IMAGE_SIZE } from '../src/game/resultImageExport.js'
 import { loadProgressSpeedPreference, PROGRESS_SPEED_PREFERENCE_KEY, saveProgressSpeedPreference } from '../src/game/uiPreferences.js'
 import { beginTurnHistory } from '../src/game/history.js'
+import { getHighSchoolPotentialMultiplier, scaleHighSchoolStatChanges } from '../src/game/highSchoolGrowth.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -1669,7 +1670,7 @@ test('team training point schedules match every team tenure rule', () => {
   assert.deepEqual([1, 2, 3, 4].map((turn) => getTeamTrainingPoints('TEAM_ATTAKE', turn)), [2, 3, 2, 3])
 })
 
-test('team turn plans are stable, apply once, ignore potential, and clamp stats', () => {
+test('team turn plans remain stable while their high-school stat gains scale by potential', () => {
   const makeCareer = (potential) => ({
     ...chooseGrowthType(createCareer({ lastName: '팀', firstName: '훈련' }, () => 0.5), 'router'),
     potential,
@@ -1687,8 +1688,21 @@ test('team turn plans are stable, apply once, ignore potential, and clamp stats'
   const applied = applyTeamTurnPlan(plannedCareer, () => 0.99)
   assert.equal(applied.teamState.teamTenureTurnCount, 1)
   assert.ok(Object.values(applied.stats).every((value) => value <= MAX_STAT))
-  assert.deepEqual(applied.currentTurnHistory.teamGrowth, lowPlan.training.statChanges)
+  assert.deepEqual(applied.currentTurnHistory.teamGrowth, scaleHighSchoolStatChanges(lowPlan.training.statChanges, 50))
   assert.strictEqual(applyTeamTurnPlan(applied, () => 0), applied)
+})
+
+test('high school potential multipliers scale positive growth without rounding or affecting penalties', () => {
+  assert.equal(getHighSchoolPotentialMultiplier(0), 0.55)
+  assert.equal(getHighSchoolPotentialMultiplier(20), 0.70)
+  assert.equal(getHighSchoolPotentialMultiplier(40), 0.85)
+  assert.equal(getHighSchoolPotentialMultiplier(60), 1)
+  assert.equal(getHighSchoolPotentialMultiplier(80), 1.10)
+  assert.equal(getHighSchoolPotentialMultiplier(95), 1.20)
+  assert.deepEqual(scaleHighSchoolStatChanges({ speed: 3, stamina: -1 }, 15), { speed: 1.6500000000000001, stamina: -1 })
+  assert.deepEqual(scaleHighSchoolStatChanges({ speed: 10 }, 45), { speed: 8.5 })
+  assert.deepEqual(scaleHighSchoolStatChanges({ speed: 10 }, 75), { speed: 10 })
+  assert.deepEqual(scaleHighSchoolStatChanges({ speed: 10 }, 98), { speed: 12 })
 })
 
 test('team condition support uses each base chance, adds twenty points when struggling, and skips top condition', () => {

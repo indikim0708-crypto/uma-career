@@ -3,7 +3,7 @@ import { TURNS } from '../data/turns.js'
 export const CAREER_SAVE_KEY = 'uma-career-save-v1'
 export const CAREER_SAVE_SCHEMA_VERSION = 1
 
-const SAVEABLE_SCREENS = new Set(['NAME_ENTRY', 'ORIGIN', 'GROWTH_PLAN', 'CAREER', 'RESULT'])
+const SAVEABLE_SCREENS = new Set(['NAME_ENTRY', 'ORIGIN', 'GROWTH_PLAN', 'CHARACTER_SELECT', 'CAREER', 'RESULT'])
 const STAT_IDS = ['speed', 'stamina', 'power', 'grit', 'intelligence']
 
 function browserStorage() {

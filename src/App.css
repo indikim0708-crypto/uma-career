@@ -156,10 +156,26 @@ button { border: 0; }
 .secondary-button:active { background: #2c2834; }
 .growth-plan-layout .type-section { margin-top: 0; }
 
+.portrait-select-layout { display: grid; gap: 14px; padding: 18px 14px 24px; }
+.portrait-select-heading { text-align: center; }
+.portrait-select-heading h1 { font: 400 30px Georgia, 'Noto Serif KR', serif; margin: 6px 0 9px; }
+.portrait-select-heading > p:last-child { color: var(--muted); font-size: 13px; margin: 0; }
+.portrait-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.portrait-choice { aspect-ratio: 1; background: #121015; border: 1px solid var(--line); cursor: pointer; min-width: 0; overflow: hidden; padding: 0; position: relative; }
+.portrait-choice.selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232, 202, 105, .2), 0 0 18px rgba(155, 93, 229, .3); }
+.portrait-choice:active { filter: brightness(1.12); }
+.character-portrait { aspect-ratio: 1; background: #19161e; display: block; object-fit: cover; object-position: center top; width: 100%; }
+.portrait-fallback { align-items: center; background: linear-gradient(145deg, #3b2949, #18151d); border: 1px solid rgba(232, 202, 105, .4); color: var(--gold); display: inline-flex; font: 700 18px Georgia, serif; justify-content: center; }
+.portrait-check { align-items: center; background: var(--gold); border: 2px solid #fff0a2; border-radius: 50%; bottom: 7px; color: #312715; display: flex; font-size: 12px; font-weight: 900; height: 24px; justify-content: center; position: absolute; right: 7px; width: 24px; }
+.portrait-confirm { width: 100%; }
+
 .progress-line { background: #0e0d11; height: 3px; }
 .progress-line span { background: linear-gradient(90deg, var(--violet), var(--gold)); display: block; height: 100%; transition: width 300ms ease; }
 .dashboard-layout { padding-bottom: 0; }
 .career-summary { padding: 14px; }
+.career-summary.has-character-portrait { align-items: start; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) minmax(88px, 31%); }
+.career-summary-copy { min-width: 0; }
+.chapter-portrait { border: 1px solid rgba(232, 202, 105, .5); box-shadow: 0 8px 18px rgba(0, 0, 0, .28); max-width: 120px; }
 .chapter-line { align-items: center; display: flex; justify-content: space-between; }
 .chapter-line > span { color: #77707e; font-size: 10px; letter-spacing: 0.08em; }
 .character-name { color: var(--gold); font-size: 12px; font-weight: 700; margin: 8px 0 0; }
@@ -345,6 +361,7 @@ button { border: 0; }
 .result-hero h1 { font: 400 clamp(34px, 10vw, 46px)/0.95 Georgia, serif; letter-spacing: 0.01em; margin: 0; text-shadow: 0 0 24px rgba(155, 93, 229, 0.4); }
 .result-name { color: var(--gold); display: block; font-size: 13px; margin-top: 14px; }
 .result-hero > p:last-child { color: #c5bdca; font-size: 13px; line-height: 1.55; margin: 18px auto 0; max-width: 390px; }
+.result-portrait { border: 1px solid rgba(232, 202, 105, .6); box-shadow: 0 8px 24px rgba(0, 0, 0, .38); margin: 0 auto 14px; width: 112px; }
 .result-layout { text-align: left; }
 .result-stats h2, .reveal-panel h2 { font: 400 24px Georgia, serif; margin: 4px 0 12px; }
 .reveal-values { display: grid; gap: 8px; grid-template-columns: repeat(2, 1fr); margin-top: 12px; }
@@ -374,6 +391,9 @@ button { border: 0; }
 .summary-card-brand span { align-items: center; background: linear-gradient(145deg, #a66aed, #6d35ad); border: 1px solid rgba(255,255,255,.35); display: inline-flex; font: 700 12px Georgia, serif; height: 32px; justify-content: center; letter-spacing: 0; width: 32px; }
 .summary-card-header > p { color: #e8ca69; font-size: 12px; font-weight: 900; letter-spacing: .22em; margin: 22px 0 6px; }
 .summary-card-header h1 { font: 400 42px/1 Georgia, 'Noto Serif KR', serif; margin: 0; overflow-wrap: anywhere; }
+.summary-card-profile { align-items: center; display: flex; gap: 18px; }
+.summary-card-profile > div { min-width: 0; }
+.summary-card-portrait { border: 1px solid rgba(232, 202, 105, .75); box-shadow: 0 8px 20px rgba(0, 0, 0, .3); flex: 0 0 126px; height: 126px; width: 126px; }
 .summary-card-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
 .summary-card-meta span { background: rgba(232,202,105,.1); border: 1px solid rgba(232,202,105,.35); color: #f4dda0; font-size: 12px; font-weight: 800; padding: 5px 9px; }
 .summary-card-body { display: grid; gap: 14px; grid-template-areas: 'left right' 'bottom bottom'; grid-template-columns: 39% minmax(0, 1fr); padding: 18px 30px 46px; }

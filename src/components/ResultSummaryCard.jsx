@@ -1,4 +1,5 @@
 import { forwardRef } from 'react'
+import CharacterPortrait from './CharacterPortrait.jsx'
 
 function SectionTitle({ children }) {
   return <p className="summary-card-kicker">{children}</p>
@@ -17,11 +18,16 @@ const ResultSummaryCard = forwardRef(function ResultSummaryCard({ summary }, ref
       <header className="summary-card-header">
         <div className="summary-card-brand"><span>UC</span><strong>UMA CAREER</strong></div>
         <p>CAREER RESULT</p>
-        <h1>{profile.fullName}</h1>
-        <div className="summary-card-meta">
-          <span>{profile.growthType}</span>
-          <span>{profile.runningStyle ?? '각질 미정'}</span>
-          <span>{profile.finalTeam ?? '무소속'}</span>
+        <div className="summary-card-profile">
+          {profile.portraitId && <CharacterPortrait portraitId={profile.portraitId} className="summary-card-portrait" alt={`${profile.fullName}의 선택한 얼굴`} />}
+          <div>
+            <h1>{profile.fullName}</h1>
+            <div className="summary-card-meta">
+              <span>{profile.growthType}</span>
+              <span>{profile.runningStyle ?? '각질 미정'}</span>
+              <span>{profile.finalTeam ?? '무소속'}</span>
+            </div>
+          </div>
         </div>
       </header>
 

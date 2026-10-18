@@ -186,6 +186,7 @@ export function buildCareerResultSummary(career) {
   return {
     profile: {
       fullName: career.fullName,
+      portraitId: career.selectedPortraitId ?? null,
       region: career.region?.name ?? '-',
       elementarySchool: careerPath[1] ?? career.school?.name ?? '-',
       middleSchool: middleSchool?.displayName ?? career.middleState?.schoolName ?? null,

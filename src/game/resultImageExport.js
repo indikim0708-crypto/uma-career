@@ -25,6 +25,7 @@ export async function createResultImageBlob(node) {
   if (!node) throw new Error('Result export card is not ready.')
   const { toBlob } = await import('html-to-image')
   if (document.fonts?.ready) await document.fonts.ready
+  await Promise.all([...node.querySelectorAll('img')].map((image) => image.decode?.().catch(() => undefined) ?? Promise.resolve()))
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
   const blob = await toBlob(node, {
     backgroundColor: EXPORT_BACKGROUND,

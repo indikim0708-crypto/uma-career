@@ -46,6 +46,7 @@ import { buildResultImageFilename, RESULT_SUMMARY_IMAGE_SIZE } from '../src/game
 import { loadProgressSpeedPreference, PROGRESS_SPEED_PREFERENCE_KEY, saveProgressSpeedPreference } from '../src/game/uiPreferences.js'
 import { beginTurnHistory } from '../src/game/history.js'
 import { getHighSchoolPotentialMultiplier, scaleHighSchoolStatChanges } from '../src/game/highSchoolGrowth.js'
+import { CHARACTER_PORTRAITS, getCharacterPortrait } from '../src/data/characterPortraits.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -278,6 +279,14 @@ test('career stores a trimmed character name with a five-character limit', () =>
   assert.equal(career.lastName, '메지로')
   assert.equal(career.firstName, '맥퀸123')
   assert.equal(career.fullName, '메지로 맥퀸123')
+  assert.equal(career.selectedPortraitId, null)
+})
+
+test('character portraits are nine cosmetic local assets with stable ids', () => {
+  assert.equal(CHARACTER_PORTRAITS.length, 9)
+  assert.deepEqual(CHARACTER_PORTRAITS.map(({ id }) => id), Array.from({ length: 9 }, (_, index) => `portrait-${String(index + 1).padStart(2, '0')}`))
+  assert.equal(getCharacterPortrait('portrait-05').image, '/assets/portraits/portrait-05.png')
+  assert.equal(getCharacterPortrait('missing'), null)
 })
 
 test('reroll preserves the name while regenerating origin, stats, and hidden traits', () => {
@@ -1834,6 +1843,7 @@ test('career saves use schema v1 and round-trip the complete source-of-truth sta
   const career = {
     ...chooseGrowthType(createCareer(names, seededRandom(801)), 'stayer'),
     turnIndex: 17,
+    selectedPortraitId: 'portrait-05',
     runningStyle: 'OIKOMI',
     condition: '양호',
     middleState: {
@@ -1879,6 +1889,7 @@ test('career saves use schema v1 and round-trip the complete source-of-truth sta
   assert.deepEqual(restored.gameState.career, JSON.parse(JSON.stringify(career)))
   assert.deepEqual(restored.gameState.career.highSchoolState.racePlan, career.highSchoolState.racePlan)
   assert.deepEqual(restored.gameState.career.teamState.initialOfferTeamIds, career.teamState.initialOfferTeamIds)
+  assert.equal(restored.gameState.career.selectedPortraitId, 'portrait-05')
 })
 
 test('completed careers are saved and resumed on RESULT', () => {
@@ -1886,6 +1897,7 @@ test('completed careers are saved and resumed on RESULT', () => {
     ...chooseGrowthType(createCareer({ lastName: '완주', firstName: '결과' }, seededRandom(802)), 'miler'),
     turnIndex: 23,
     complete: true,
+    selectedPortraitId: 'portrait-05',
     history: [{ type: 'ENDING', title: '커리어 완료' }],
   }
   const snapshot = buildSaveSnapshot({
@@ -1947,6 +1959,7 @@ test('result summary keeps canonical race order and deduplicates achievements an
   const career = {
     ...base,
     complete: true,
+    selectedPortraitId: 'portrait-05',
     runningStyle: 'SASHI',
     middleState: { schoolId: 'central_tracen_middle', schoolName: '중앙 트레센 학원' },
     highSchoolAdmission: { accepted: true },
@@ -1968,6 +1981,7 @@ test('result summary keeps canonical race order and deduplicates achievements an
     ] },
   }
   const summary = buildCareerResultSummary(career)
+  assert.equal(summary.profile.portraitId, 'portrait-05')
   assert.deepEqual(summary.g1Results.map(({ raceId }) => raceId), ['satsuki_sho', 'japan_derby'])
   assert.equal(summary.raceSummary.g1Starts, 2)
   assert.equal(summary.raceSummary.g1Wins, 1)

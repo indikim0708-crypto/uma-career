@@ -43,6 +43,7 @@ export function createCareer(names = {}, rng = Math.random) {
     initialStats,
     potential,
     stability,
+    selectedPortraitId: null,
     growthType: null,
     condition: '보통',
     turnIndex: 0,

@@ -29,6 +29,12 @@ export const ADMISSION_BALANCE = {
   centralElementaryMinimumChance: 0.90,
   HIGH_SCHOOL_ADMISSION: {
     overall: { minimumTotal: 200, range: 80, maximum: 55 },
+    overallWeights: {
+      SPRINTER: { speed: 1.35, stamina: 0.50, power: 1.35, grit: 0.80, intelligence: 1.00 },
+      MILER: { speed: 1.30, stamina: 0.70, power: 1.20, grit: 0.80, intelligence: 1.00 },
+      ROUTER: { speed: 1.10, stamina: 0.90, power: 1.10, grit: 1.00, intelligence: 0.90 },
+      STAYER: { speed: 1.00, stamina: 1.35, power: 0.70, grit: 1.15, intelligence: 0.80 },
+    },
     specialtyNormalization: {
       SPRINTER: { min: 40, max: 65 },
       MILER: { min: 40, max: 65 },

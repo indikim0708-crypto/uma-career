@@ -27,9 +27,14 @@ export function calculateHighSchoolSpecialtyScore(career) {
   return clamp((coreStatAverage - normalization.min) / (normalization.max - normalization.min), 0, 1) * HIGH.specialtyMaximum
 }
 
+export function calculateHighSchoolWeightedTotalStats(career) {
+  const weights = HIGH.overallWeights[career.growthType.id.toUpperCase()]
+  return Object.entries(weights).reduce((total, [statId, weight]) => total + career.stats[statId] * weight, 0)
+}
+
 export function calculateHighSchoolAdmissionScore(career) {
-  const totalStats = Object.values(career.stats).reduce((sum, value) => sum + value, 0)
-  const overallScore = clamp((totalStats - HIGH.overall.minimumTotal) / HIGH.overall.range, 0, 1) * HIGH.overall.maximum
+  const weightedTotalStats = calculateHighSchoolWeightedTotalStats(career)
+  const overallScore = clamp((weightedTotalStats - HIGH.overall.minimumTotal) / HIGH.overall.range, 0, 1) * HIGH.overall.maximum
   const specialtyScore = calculateHighSchoolSpecialtyScore(career)
   const schoolBonus = career.middleState?.schoolId === 'central_tracen_middle' ? HIGH.centralMiddleBonus : 0
   return clamp(overallScore + specialtyScore + schoolBonus, 0, 100)

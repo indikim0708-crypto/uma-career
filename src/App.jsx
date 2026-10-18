@@ -22,6 +22,7 @@ import { HIGH_YEAR2_RACES, HIGH_YEAR2_ROUTE_LABELS } from './data/highSchoolYear
 import { TEAM_BY_ID } from './data/highSchoolTeams.js'
 import { resolveTeamTransferOffer } from './game/highSchoolTeam.js'
 import { deleteCareerSave, loadCareerSave, saveCareerState } from './game/saveSystem.js'
+import { loadProgressSpeedPreference, saveProgressSpeedPreference } from './game/uiPreferences.js'
 import ResultSummaryCard from './components/ResultSummaryCard.jsx'
 import { buildCareerResultSummary } from './game/resultSummary.js'
 import { buildResultImageFilename, createResultImageBlob, saveOrShareResultImage } from './game/resultImageExport.js'
@@ -731,7 +732,7 @@ function App() {
   const [career, setCareer] = useState(null)
   const [selectedType, setSelectedType] = useState(null)
   const [turnProgress, setTurnProgress] = useState(null)
-  const [progressSpeed, setProgressSpeed] = useState(1)
+  const [progressSpeed, setProgressSpeed] = useState(() => loadProgressSpeedPreference())
   const [homeSave, setHomeSave] = useState(() => loadCareerSave())
 
   const checkpointCareer = (nextCareer, nextScreen = screen, nextNames = names, nextSelectedType = selectedType) => {
@@ -748,7 +749,6 @@ function App() {
     setCareer(null)
     setSelectedType(null)
     setTurnProgress(null)
-    setProgressSpeed(1)
     setScreen(SCREENS.NAME_ENTRY)
   }
 
@@ -761,7 +761,6 @@ function App() {
     setCareer(restored.career)
     setSelectedType(restored.selectedType)
     setTurnProgress(nextScreen === SCREENS.CAREER ? createResumeTurnProgress(restored.career) : null)
-    setProgressSpeed(1)
     setScreen(nextScreen)
     setHomeSave(save)
   }
@@ -901,7 +900,7 @@ function App() {
   if (screen === SCREENS.NAME_ENTRY) return <NameEntry names={names} onChange={handleNameChange} onRandomName={randomizeName} onConfirm={confirmName} onBack={() => setScreen(SCREENS.HOME)} />
   if (screen === SCREENS.ORIGIN) return <OriginReview career={career} onReroll={() => checkpointCareer(rerollCareer(career))} onConfirm={() => checkpointCareer(career, SCREENS.GROWTH_PLAN)} onBack={() => checkpointCareer(career, SCREENS.NAME_ENTRY)} />
   if (screen === SCREENS.GROWTH_PLAN) return <GrowthPlan career={career} selectedType={selectedType} onSelect={(typeId) => { setSelectedType(typeId); const snapshot = saveCareerState({ screen: SCREENS.GROWTH_PLAN, names, career, selectedType: typeId }); if (snapshot) setHomeSave(snapshot) }} onBegin={beginCareer} onBack={() => checkpointCareer(career, SCREENS.ORIGIN)} />
-  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={setProgressSpeed} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onTeamInitialSelect={handleTeamInitialSelect} onTeamTransferDecision={handleTeamTransferDecision} onAdmissionContinue={handleAdmissionContinue} onAdmissionSequenceComplete={handleAdmissionSequenceComplete} onHighAdmissionSequenceComplete={handleHighAdmissionSequenceComplete} onHighAdmissionContinue={handleHighAdmissionContinue} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} onHighLegendSelect={handleHighLegendSelect} onHighLegendContinue={handleHighLegendContinue} onHighEventChoice={handleHighEventChoice} onHighEventContinue={handleHighEventContinue} onRunningStyleSelect={handleRunningStyleSelect} onRunningStyleContinue={handleRunningStyleContinue} onYear2SpecialSelect={handleYear2SpecialSelect} onYear3SpecialSelect={handleYear3SpecialSelect} onYear2AchievementContinue={handleYear2AchievementContinue} onYear3AchievementContinue={handleYear3AchievementContinue} onRaceSelect={handleRaceSelect} onRaceSequenceComplete={handleRaceSequenceComplete} onRaceContinue={handleRaceContinue} />
+  if (screen === SCREENS.CAREER) return <Playing career={career} turnProgress={turnProgress} progressSpeed={progressSpeed} onProgressSpeedChange={(speed) => setProgressSpeed(saveProgressSpeedPreference(speed))} onProgressEventTrigger={triggerProgressEvent} onProgressLegendTrigger={triggerProgressLegend} onProgressComplete={completeProgress} onAdvance={handleAdvance} onEventChoice={handleEventChoice} onEventContinue={handleEventContinue} onTransferDecision={handleTransferDecision} onTeamInitialSelect={handleTeamInitialSelect} onTeamTransferDecision={handleTeamTransferDecision} onAdmissionContinue={handleAdmissionContinue} onAdmissionSequenceComplete={handleAdmissionSequenceComplete} onHighAdmissionSequenceComplete={handleHighAdmissionSequenceComplete} onHighAdmissionContinue={handleHighAdmissionContinue} onDistanceChange={handleDistanceChange} onMiddleEventChoice={handleMiddleEventChoice} onMiddleEventContinue={handleMiddleEventContinue} onLegendSelect={handleLegendSelect} onLegendContinue={handleLegendContinue} onHighLegendSelect={handleHighLegendSelect} onHighLegendContinue={handleHighLegendContinue} onHighEventChoice={handleHighEventChoice} onHighEventContinue={handleHighEventContinue} onRunningStyleSelect={handleRunningStyleSelect} onRunningStyleContinue={handleRunningStyleContinue} onYear2SpecialSelect={handleYear2SpecialSelect} onYear3SpecialSelect={handleYear3SpecialSelect} onYear2AchievementContinue={handleYear2AchievementContinue} onYear3AchievementContinue={handleYear3AchievementContinue} onRaceSelect={handleRaceSelect} onRaceSequenceComplete={handleRaceSequenceComplete} onRaceContinue={handleRaceContinue} />
   if (screen === 'ANOTHER_PATH') return <AnotherPath onComplete={() => setScreen(SCREENS.RESULT)} />
   if (screen === SCREENS.RESULT) return <Complete career={career} onRestart={startNewCareer} />
   return <Intro save={homeSave} onContinue={continueCareer} onStart={startNewCareer} />

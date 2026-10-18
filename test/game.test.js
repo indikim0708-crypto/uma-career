@@ -43,6 +43,7 @@ import { normalizeTurn13Stats, recommendRunningStyle, safeZScore } from '../src/
 import { buildSaveSnapshot, CAREER_SAVE_KEY, deleteCareerSave, hasCareerSave, loadCareerSave, saveCareerState, validateSaveData } from '../src/game/saveSystem.js'
 import { buildCareerResultSummary } from '../src/game/resultSummary.js'
 import { buildResultImageFilename, RESULT_SUMMARY_IMAGE_SIZE } from '../src/game/resultImageExport.js'
+import { loadProgressSpeedPreference, PROGRESS_SPEED_PREFERENCE_KEY, saveProgressSpeedPreference } from '../src/game/uiPreferences.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -1885,4 +1886,18 @@ test('result image filename preserves Korean names and strips unsafe characters'
 
 test('career summary export uses a fixed square canvas', () => {
   assert.equal(RESULT_SUMMARY_IMAGE_SIZE, 1000)
+})
+
+test('progress speed preference restores 2x and safely falls back to 1x', () => {
+  const values = new Map()
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+  }
+  assert.equal(loadProgressSpeedPreference(storage), 1)
+  assert.equal(saveProgressSpeedPreference(2, storage), 2)
+  assert.equal(values.get(PROGRESS_SPEED_PREFERENCE_KEY), '2')
+  assert.equal(loadProgressSpeedPreference(storage), 2)
+  values.set(PROGRESS_SPEED_PREFERENCE_KEY, '99')
+  assert.equal(loadProgressSpeedPreference(storage), 1)
 })

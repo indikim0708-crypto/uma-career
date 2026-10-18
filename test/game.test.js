@@ -36,7 +36,7 @@ import { HIGH_SCHOOL_YEAR3_EVENTS } from '../src/data/highSchoolYear3Events.js'
 import { HIGH_YEAR3_RACES } from '../src/data/highSchoolYear3Races.js'
 import { HIGH_SCHOOL_LEGEND_EVENTS } from '../src/data/highSchoolLegendEvents.js'
 import { createHighSchoolLegendState, ensureHighSchoolLegendPlan, getHighLegendTurns, getHighLegendWeights, selectHighSchoolLegend } from '../src/game/highSchoolLegend.js'
-import { applyTeamTurnPlan, calculateTeamReputation, createInitialTeamOffers, createTeamState, createTeamTurnPlan, getEligibleTransferTeams, getTeamTrainingPoints, prepareTeamTransferCheckpoint, resolveInitialTeamOffer, resolveTeamTransferOffer } from '../src/game/highSchoolTeam.js'
+import { applyTeamTurnPlan, calculateTeamReputation, createInitialTeamOffers, createTeamState, createTeamTurnPlan, getEligibleTransferTeams, getTeamTrainingPoints, getTransferPolicy, prepareTeamTransferCheckpoint, resolveInitialTeamOffer, resolveTeamTransferOffer } from '../src/game/highSchoolTeam.js'
 import { INITIAL_TEAM_IDS, TEAM_BY_ID } from '../src/data/highSchoolTeams.js'
 import { STAYER_STAT_NORMS, TURN13_STAT_NORMS } from '../src/data/runningStyleRecommendationBalance.js'
 import { normalizeTurn13Stats, recommendRunningStyle, safeZScore } from '../src/game/runningStyleRecommendation.js'
@@ -1693,6 +1693,7 @@ test('team reputation counts G1 results and unique route achievements at the req
 test('transfer checkpoints offer only eligible stronger teams and acceptance resets tenure once', () => {
   const base = {
     ...chooseGrowthType(createCareer({ lastName: '팀', firstName: '이적' }, () => 0.5), 'router'),
+    potential: 55,
     turnIndex: 16,
     runningStyle: 'SENKO',
     history: [{ races: [{ grade: 'G1', finishPosition: 1 }] }],
@@ -1703,18 +1704,20 @@ test('transfer checkpoints offer only eligible stronger teams and acceptance res
   assert.ok(eligible.some(({ id }) => id === 'TEAM_RIGIL'))
   assert.ok(!eligible.some(({ id }) => id === 'TEAM_TURF_QUEENS' || id === 'TEAM_ATTAKE'))
 
-  const spicaAt51 = {
+  const spicaAt65 = {
     ...base,
+    potential: 65,
     history: [{ races: [
       { grade: 'G1', finishPosition: 1 }, { grade: 'G1', finishPosition: 1 },
       { grade: 'G1', finishPosition: 2 }, { grade: 'G1', finishPosition: 6 },
     ] }],
     teamState: { ...base.teamState, currentTeamId: 'TEAM_SPICA' },
   }
-  assert.deepEqual(getEligibleTransferTeams(spicaAt51).map(({ id }) => id), ['TEAM_TURF_QUEENS', 'TEAM_RIGIL'])
+  assert.deepEqual(getEligibleTransferTeams(spicaAt65).map(({ id }) => id), ['TEAM_TURF_QUEENS', 'TEAM_RIGIL'])
 
   const rigilAt80 = {
     ...base,
+    potential: 80,
     history: [{ races: Array.from({ length: 4 }, () => ({ grade: 'G1', finishPosition: 1 })) }],
     teamState: { ...base.teamState, currentTeamId: 'TEAM_RIGIL' },
   }
@@ -1734,6 +1737,33 @@ test('transfer checkpoints offer only eligible stronger teams and acceptance res
   const rejected = resolveTeamTransferOffer(prepareTeamTransferCheckpoint(base, seededRandom(702)), false)
   assert.equal(rejected.teamState.currentTeamId, 'TEAM_CANOPUS')
   assert.equal(rejected.teamState.teamTenureTurnCount, 4)
+})
+
+test('transfer opportunities and highest eligible team are limited by potential without changing reputation scoring', () => {
+  assert.deepEqual(getTransferPolicy(35), { checkpoints: ['beforeTurn21'], highestEligibleRank: 4 })
+  assert.deepEqual(getTransferPolicy(50), { checkpoints: ['beforeTurn21'], highestEligibleRank: 4 })
+  assert.deepEqual(getTransferPolicy(55), { checkpoints: ['beforeTurn17', 'beforeTurn24'], highestEligibleRank: 3 })
+  assert.deepEqual(getTransferPolicy(65), { checkpoints: ['beforeTurn17', 'beforeTurn21', 'beforeTurn24'], highestEligibleRank: 2 })
+  assert.deepEqual(getTransferPolicy(80), { checkpoints: ['beforeTurn17', 'beforeTurn21', 'beforeTurn24'], highestEligibleRank: 1 })
+
+  const career = {
+    ...chooseGrowthType(createCareer({ lastName: '팀', firstName: '상한' }, () => .5), 'router'),
+    turnIndex: 16,
+    runningStyle: 'SENKO',
+    history: [{ races: Array.from({ length: 5 }, () => ({ grade: 'G1', finishPosition: 1 })) }],
+    teamState: { ...createTeamState(), currentTeamId: 'TEAM_CANOPUS', initialOffersResolved: true },
+  }
+  assert.equal(calculateTeamReputation(career), 100)
+  assert.equal(getEligibleTransferTeams({ ...career, potential: 50 }).some(({ id }) => id === 'TEAM_RIGIL'), false)
+  assert.equal(getEligibleTransferTeams({ ...career, potential: 50 }).some(({ id }) => id === 'TEAM_SPICA'), true)
+  assert.equal(getEligibleTransferTeams({ ...career, potential: 90, history: [{ races: [{ grade: 'G1', finishPosition: 1 }, { grade: 'G1', finishPosition: 1 }] }] }).some(({ id }) => id === 'TEAM_ATTAKE'), false)
+  assert.equal(getEligibleTransferTeams({ ...career, potential: 90 }).some(({ id }) => id === 'TEAM_ATTAKE'), true)
+
+  const skipped = prepareTeamTransferCheckpoint({ ...career, potential: 35 }, () => .5)
+  assert.equal(skipped.teamState.currentTransferOffer, null)
+  assert.equal(skipped.teamState.transferCheckpointsResolved.beforeTurn17, true)
+  const allowed = prepareTeamTransferCheckpoint({ ...career, potential: 55 }, () => .5)
+  assert.ok(allowed.teamState.currentTransferOffer)
 })
 
 test('career saves use schema v1 and round-trip the complete source-of-truth state', () => {

@@ -22,6 +22,13 @@ const TRANSFER_STYLE = {
   NIGE: { TEAM_TURF_QUEENS: 8, TEAM_SPICA: 5 }, SENKO: { TEAM_RIGIL: 8, TEAM_SPICA: 6, TEAM_ATTAKE: 4 }, SASHI: { TEAM_RIGIL: 7, TEAM_ASELLA: 6, TEAM_ATTAKE: 4 }, OIKOMI: { TEAM_SIRIUS: 8, TEAM_CANOPUS: 6, TEAM_CAPELLA: 5 },
 }
 
+export function getTransferPolicy(potential) {
+  if (potential <= 50) return { checkpoints: ['beforeTurn21'], highestEligibleRank: 4 }
+  if (potential <= 60) return { checkpoints: ['beforeTurn17', 'beforeTurn24'], highestEligibleRank: 3 }
+  if (potential <= 75) return { checkpoints: ['beforeTurn17', 'beforeTurn21', 'beforeTurn24'], highestEligibleRank: 2 }
+  return { checkpoints: ['beforeTurn17', 'beforeTurn21', 'beforeTurn24'], highestEligibleRank: 1 }
+}
+
 export function createTeamState() {
   return { currentTeamId: null, teamTenureTurnCount: 0, initialOffersResolved: false, initialOfferTeamIds: [], transferCheckpointsResolved: { beforeTurn17: false, beforeTurn21: false, beforeTurn24: false }, currentTransferOffer: null, turnPlans: {}, history: [] }
 }
@@ -126,7 +133,8 @@ export function calculateTeamReputation(career) {
 export function getEligibleTransferTeams(career) {
   const reputation = calculateTeamReputation(career)
   const current = TEAM_BY_ID[career.teamState?.currentTeamId]
-  return Object.values(TEAM_BY_ID).filter((team) => (!current || team.rank < current.rank) && team.minimumReputation <= reputation)
+  const { highestEligibleRank } = getTransferPolicy(career.potential)
+  return Object.values(TEAM_BY_ID).filter((team) => (!current || team.rank < current.rank) && team.rank >= highestEligibleRank && team.minimumReputation <= reputation)
 }
 
 export function prepareTeamTransferCheckpoint(career, rng = Math.random) {
@@ -135,6 +143,9 @@ export function prepareTeamTransferCheckpoint(career, rng = Math.random) {
   if (!checkpoint) return career
   const state = career.teamState ?? createTeamState()
   if (state.transferCheckpointsResolved[checkpoint] || state.currentTransferOffer) return career.teamState ? career : { ...career, teamState: state }
+  if (!getTransferPolicy(career.potential).checkpoints.includes(checkpoint)) {
+    return { ...career, teamState: { ...state, transferCheckpointsResolved: { ...state.transferCheckpointsResolved, [checkpoint]: true } } }
+  }
   const candidates = getEligibleTransferTeams({ ...career, teamState: state })
   if (!candidates.length) return { ...career, teamState: { ...state, transferCheckpointsResolved: { ...state.transferCheckpointsResolved, [checkpoint]: true } } }
   const weights = Object.fromEntries(candidates.map(({ id }) => [id, 10 + PRESTIGE[id] + (TRANSFER_GROWTH[career.growthType.id]?.[id] ?? 0) + (TRANSFER_STYLE[career.runningStyle]?.[id] ?? 0)]))

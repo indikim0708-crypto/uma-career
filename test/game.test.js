@@ -41,7 +41,7 @@ import { INITIAL_TEAM_IDS, TEAM_BY_ID } from '../src/data/highSchoolTeams.js'
 import { STAYER_STAT_NORMS, TURN13_STAT_NORMS } from '../src/data/runningStyleRecommendationBalance.js'
 import { normalizeTurn13Stats, recommendRunningStyle, safeZScore } from '../src/game/runningStyleRecommendation.js'
 import { buildSaveSnapshot, CAREER_SAVE_KEY, deleteCareerSave, hasCareerSave, loadCareerSave, saveCareerState, validateSaveData } from '../src/game/saveSystem.js'
-import { buildCareerResultSummary, isFirstG1Win } from '../src/game/resultSummary.js'
+import { buildCareerResultSummary, getBaseCareerTitle, getSeasonCareerTitle, isFirstG1Win } from '../src/game/resultSummary.js'
 import { buildResultImageFilename, RESULT_SUMMARY_IMAGE_SIZE } from '../src/game/resultImageExport.js'
 import { loadProgressSpeedPreference, PROGRESS_SPEED_PREFERENCE_KEY, saveProgressSpeedPreference } from '../src/game/uiPreferences.js'
 
@@ -1917,6 +1917,35 @@ test('result summary keeps canonical race order and deduplicates achievements an
   assert.ok(summary.careerPath.includes('중앙 트레센 초등학교'))
   assert.ok(summary.notes.some(({ value }) => value === '마일러 → 라우터'))
   assert.equal(summary.ending.title, '중앙 트레센 학원 고등부 졸업')
+  assert.equal(summary.careerTitle.baseTitle.title, '추격의 칼날')
+  assert.equal(summary.careerTitle.baseTitle.tier, 'UNCOMMON')
+})
+
+test('career title helpers provide all twenty style and G1-win combinations', () => {
+  const expected = {
+    NIGE: ['선두를 꿈꾸는 자', '앞선의 개척자', '질주의 선봉', '천리독주', '절대선두'],
+    SENKO: ['정석의 주자', '선행의 승부사', '왕도의 주자', '왕도의 강자', '왕도의 지배자'],
+    SASHI: ['역전을 노리는 자', '추격의 칼날', '막판의 승부사', '역전의 명수', '역전의 지배자'],
+    OIKOMI: ['마지막을 기다리는 자', '최후방의 사냥꾼', '막판의 폭풍', '최후의 역전극', '끝에서 온 지배자'],
+  }
+  const wins = [0, 1, 3, 5, 6]
+  const tiers = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGEND']
+  for (const [style, titles] of Object.entries(expected)) {
+    for (const [index, g1Wins] of wins.entries()) {
+      const title = getBaseCareerTitle({ runningStyle: style, g1Wins })
+      assert.equal(title.title, titles[index])
+      assert.equal(title.tier, tiers[index])
+    }
+  }
+})
+
+test('season career titles use the specified priority and do not apply to non-graduation endings', () => {
+  assert.equal(getSeasonCareerTitle([]), null)
+  assert.deepEqual(getSeasonCareerTitle([{ id: 'GRAND_PRIX_DOUBLE' }, { id: 'CLASSIC_TRIPLE_CROWN' }]), { achievementId: 'CLASSIC_TRIPLE_CROWN', title: '클래식의 황제', tier: 'LEGEND', color: '#FF9D3D' })
+  assert.deepEqual(getSeasonCareerTitle([{ id: 'AUTUMN_TRIPLE' }, { id: 'CLASSIC_TRIPLE_CROWN' }]), { achievementId: 'AUTUMN_TRIPLE', title: '가을의 황제', tier: 'LEGEND', color: '#FF9D3D' })
+  const base = chooseGrowthType(createCareer({ lastName: '엔딩', firstName: '검증' }, seededRandom(903)), 'miler')
+  const badEnd = buildCareerResultSummary({ ...base, complete: true, badEnding: { title: '데뷔 실패', body: '끝났습니다.' } })
+  assert.equal(badEnd.careerTitle, null)
 })
 
 test('result summary supports non-racer and debut bad endings without high-school season data', () => {

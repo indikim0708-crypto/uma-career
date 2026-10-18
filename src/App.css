@@ -360,6 +360,10 @@ button { border: 0; }
 .result-export-status { color: var(--gold); font-size: 11px; margin: 0; min-height: 17px; text-align: center; }
 .ending-panel h2 { font: 400 24px Georgia, serif; margin: 4px 0 12px; }
 .ending-panel > p:last-child { color: #d5ceda; font-size: 13px; line-height: 1.7; margin: 0; white-space: pre-line; }
+.career-title-panel h2 { font: 400 24px Georgia, serif; margin: 4px 0 14px; }
+.career-title-line { border-left: 2px solid var(--gold); display: grid; gap: 3px; margin-top: 11px; padding-left: 10px; }
+.career-title-line small { color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .1em; }
+.career-title-line strong { font: 400 22px/1.2 Georgia, 'Noto Serif KR', serif; }
 .another-path { align-items: center; display: flex; flex-direction: column; justify-content: center; min-height: 100svh; padding: 28px; text-align: center; }
 .another-path h1 { font: 400 clamp(30px, 9vw, 44px)/1.1 Georgia, serif; margin: 0; }
 .another-path > p:last-child { color: var(--muted); font-size: 13px; margin: 16px 0 0; }
@@ -414,6 +418,11 @@ button { border: 0; }
 .summary-card-ending strong { display: block; font: 400 18px/1.2 Georgia, 'Noto Serif KR', serif; margin-top: 3px; }
 .summary-card-ending em { color: #c7b5d1; display: block; font-size: 11px; font-style: normal; font-weight: 800; margin-top: 7px; }
 .summary-card-ending p { color: #bdb3c3; display: -webkit-box; font-size: 10px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.4; margin: 5px 0 0; overflow: hidden; white-space: pre-line; }
+.summary-card-career-title { border-left: 2px solid #e8ca69; margin-top: 14px; padding-left: 11px; }
+.summary-card-career-title > span { color: #e8ca69; display: block; font-size: 9px; font-weight: 900; letter-spacing: .14em; }
+.summary-card-title-line { display: grid; gap: 2px; margin-top: 8px; }
+.summary-card-title-line small { color: #c7b5d1; font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+.summary-card-title-line strong { font: 400 17px/1.18 Georgia, 'Noto Serif KR', serif; }
 .summary-card-bottom-another-path { grid-template-columns: 1fr; }
 .summary-card-another-path { min-height: 0; }
 .summary-card-another-path .summary-card-ending { margin-top: 22px; }

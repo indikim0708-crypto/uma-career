@@ -9,7 +9,7 @@ function displayWholeStat(value) {
 }
 
 const ResultSummaryCard = forwardRef(function ResultSummaryCard({ summary }, ref) {
-  const { profile, finalStats, schoolHistory, raceSummary, raceRecords, achievements, ending } = summary
+  const { profile, finalStats, schoolHistory, raceSummary, raceRecords, achievements, careerTitle, ending } = summary
   const hasHighSchool = Boolean(schoolHistory.high)
   const isAnotherPath = ending.type === 'ANOTHER PATH'
   return (
@@ -59,7 +59,7 @@ const ResultSummaryCard = forwardRef(function ResultSummaryCard({ summary }, ref
             <SectionTitle>CAREER SUMMARY</SectionTitle>
             <h2>커리어 요약</h2>
             {hasHighSchool ? <div className="summary-card-metrics"><div><span>G1 출전</span><strong>{raceSummary.g1Starts}회</strong></div><div><span>G1 우승</span><strong>{raceSummary.g1Wins}회</strong></div></div> : <div className="summary-card-path-metrics"><span>고등부 진학</span><strong>다른 길을 선택했습니다</strong></div>}
-            <div className="summary-card-ending"><span>{ending.type}</span><strong>{ending.title}</strong>{ending.career && <em>최종 진로 · {ending.career}</em>}{ending.detail && <p>{ending.detail}</p>}</div>
+            {careerTitle ? <div className="summary-card-career-title"><span>CAREER TITLE</span>{careerTitle.seasonTitle && <div className="summary-card-title-line"><small>{careerTitle.seasonTitle.tier}</small><strong style={{ color: careerTitle.seasonTitle.color }}>{careerTitle.seasonTitle.title}</strong></div>}<div className="summary-card-title-line"><small>{careerTitle.baseTitle.tier} · {profile.runningStyle ?? '각질 미정'} · G1 {raceSummary.g1Wins}승</small><strong style={{ color: careerTitle.baseTitle.color }}>{careerTitle.baseTitle.title}</strong></div></div> : <div className="summary-card-ending"><span>{ending.type}</span><strong>{ending.title}</strong>{ending.career && <em>최종 진로 · {ending.career}</em>}{ending.detail && <p>{ending.detail}</p>}</div>}
           </section>
           <section className="summary-card-section summary-card-achievements">
             <SectionTitle>ACHIEVEMENTS</SectionTitle>

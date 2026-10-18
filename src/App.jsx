@@ -677,6 +677,7 @@ function Complete({ career, onRestart }) {
   const g1Races = summary.g1Results
   const g1Wins = summary.majorWins
   const achievements = summary.achievements
+  const careerTitle = summary.careerTitle
   const teamHistory = career.teamState?.history ?? []
   return (
     <main className="result-page page-shell">
@@ -712,6 +713,7 @@ function Complete({ career, onRestart }) {
             <div><span>안정성</span><strong>{career.stability}</strong><small>/ 100</small></div>
           </div>
         </section>
+        {careerTitle && <section className="panel career-title-panel"><p className="section-kicker">CAREER TITLE</p><h2>커리어 칭호</h2>{careerTitle.seasonTitle && <div className="career-title-line"><small>{careerTitle.seasonTitle.tier}</small><strong style={{ color: careerTitle.seasonTitle.color }}>{careerTitle.seasonTitle.title}</strong></div>}<div className="career-title-line"><small>{careerTitle.baseTitle.tier} · {getRunningStyle(career.runningStyle)?.label ?? '각질 미정'} · G1 {summary.raceSummary.g1Wins}승</small><strong style={{ color: careerTitle.baseTitle.color }}>{careerTitle.baseTitle.title}</strong></div></section>}
         {g1Wins.length > 0 && <section className="panel achievement-panel"><p className="section-kicker">MAJOR WINS</p><h2>주요 우승 레이스</h2>{g1Wins.map((race) => <p key={`${race.turn}-${race.raceId}`}>◆ {race.raceName}</p>)}</section>}
         {achievements.length > 0 && <section className="panel achievement-panel"><p className="section-kicker">ACHIEVEMENTS</p><h2>시즌 업적</h2>{achievements.map((achievement) => <p key={achievement.id}>★ {achievement.name}</p>)}</section>}
         <section className="panel achievement-panel"><p className="section-kicker">TEAM CAREER</p><h2>팀 이력</h2>{teamHistory.length ? teamHistory.map((entry, index) => <p key={`${entry.type}-${index}`}>{entry.type === 'TEAM_JOIN' ? `TURN 13 · ${entry.teamName} 가입` : entry.type === 'TEAM_TRANSFER' ? `TURN ${entry.beforeTurn} 전 · ${TEAM_BY_ID[entry.fromTeamId]?.name ?? '무소속'} → ${TEAM_BY_ID[entry.toTeamId]?.name}` : 'TURN 13 · 무소속 선택'}</p>) : <p>무소속</p>}<p><strong>최종 · {TEAM_BY_ID[career.teamState?.currentTeamId]?.name ?? '무소속'}</strong></p></section>

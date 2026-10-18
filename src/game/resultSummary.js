@@ -4,6 +4,54 @@ import { getRunningStyle } from '../data/runningStyles.js'
 import { MAX_STAT, STATS } from '../data/stats.js'
 import { TEAM_BY_ID } from '../data/highSchoolTeams.js'
 
+export const CAREER_TITLE_TIERS = {
+  COMMON: { color: '#F2F2F2' },
+  UNCOMMON: { color: '#69D17C' },
+  RARE: { color: '#5AA9FF' },
+  EPIC: { color: '#B678FF' },
+  LEGEND: { color: '#FF9D3D' },
+}
+
+const BASE_CAREER_TITLES = {
+  NIGE: ['선두를 꿈꾸는 자', '앞선의 개척자', '질주의 선봉', '천리독주', '절대선두'],
+  SENKO: ['정석의 주자', '선행의 승부사', '왕도의 주자', '왕도의 강자', '왕도의 지배자'],
+  SASHI: ['역전을 노리는 자', '추격의 칼날', '막판의 승부사', '역전의 명수', '역전의 지배자'],
+  OIKOMI: ['마지막을 기다리는 자', '최후방의 사냥꾼', '막판의 폭풍', '최후의 역전극', '끝에서 온 지배자'],
+}
+const TITLE_TIERS = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGEND']
+const SEASON_CAREER_TITLES = [
+  ['AUTUMN_TRIPLE', '가을의 황제', 'LEGEND'],
+  ['CLASSIC_TRIPLE_CROWN', '클래식의 황제', 'LEGEND'],
+  ['TRIPLE_TIARA', '티아라의 여왕', 'LEGEND'],
+  ['TENNO_DOUBLE', '천황상의 지배자', 'LEGEND'],
+  ['GRAND_PRIX_DOUBLE', '그랑프리의 제왕', 'EPIC'],
+  ['SPRINT_KING', '전광의 제왕', 'EPIC'],
+  ['MILE_DOMINATOR', '마일의 지배자', 'EPIC'],
+  ['MILE_STAR', '마일의 샛별', 'RARE'],
+]
+
+function titleIndexForG1Wins(g1Wins) {
+  if (g1Wins <= 0) return 0
+  if (g1Wins === 1) return 1
+  if (g1Wins <= 3) return 2
+  if (g1Wins <= 5) return 3
+  return 4
+}
+
+export function getBaseCareerTitle({ runningStyle, g1Wins }) {
+  const index = titleIndexForG1Wins(g1Wins)
+  const tier = TITLE_TIERS[index]
+  return { title: (BASE_CAREER_TITLES[runningStyle] ?? BASE_CAREER_TITLES.SENKO)[index], tier, color: CAREER_TITLE_TIERS[tier].color }
+}
+
+export function getSeasonCareerTitle(achievements = []) {
+  const ids = new Set(achievements.map((achievement) => typeof achievement === 'string' ? achievement : achievement?.id))
+  const selected = SEASON_CAREER_TITLES.find(([id]) => ids.has(id))
+  if (!selected) return null
+  const [achievementId, title, tier] = selected
+  return { achievementId, title, tier, color: CAREER_TITLE_TIERS[tier].color }
+}
+
 function chronologicalHistory(history = []) {
   return [...history].sort((a, b) => (a.turn ?? 0) - (b.turn ?? 0))
 }
@@ -132,6 +180,9 @@ export function buildCareerResultSummary(career) {
   const g1Results = races.filter((race) => race.grade === 'G1' || race.raceType === 'G1')
   const teamCareer = collectTeamCareer(career)
   const runningStyle = getRunningStyle(career.runningStyle)
+  const achievements = collectAchievements(career)
+  const g1Wins = g1Results.filter((race) => (race.finalPosition ?? race.finishPosition) === 1).length
+  const isNormalGraduation = career.complete && !career.badEnding && !career.nonRacerEnding
   return {
     profile: {
       fullName: career.fullName,
@@ -153,12 +204,16 @@ export function buildCareerResultSummary(career) {
       starts: races.length,
       wins: races.filter((race) => race.finishPosition === 1 || race.won).length,
       g1Starts: g1Results.length,
-      g1Wins: g1Results.filter((race) => race.finishPosition === 1 || race.won).length,
+      g1Wins,
       g1Top3: g1Results.filter((race) => race.finishPosition >= 1 && race.finishPosition <= 3).length,
     },
     g1Results,
     majorWins: g1Results.filter((race) => race.finishPosition === 1 || race.won),
-    achievements: collectAchievements(career),
+    achievements,
+    careerTitle: isNormalGraduation ? {
+      seasonTitle: getSeasonCareerTitle(achievements),
+      baseTitle: getBaseCareerTitle({ runningStyle: career.runningStyle, g1Wins }),
+    } : null,
     legends: collectLegends(career.history),
     notes: collectNotes(career),
     ending: buildEnding(career),

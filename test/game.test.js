@@ -1861,7 +1861,8 @@ test('result summary supports non-racer and debut bad endings without high-schoo
     nonRacerEnding: { title: '레이스를 읽는 사람', career: '레이스 분석가', body: '새로운 길을 찾았습니다.' },
   })
   assert.equal(nonRacer.ending.type, 'ANOTHER PATH')
-  assert.equal(nonRacer.ending.detail, '레이스 분석가')
+  assert.equal(nonRacer.ending.career, '레이스 분석가')
+  assert.equal(nonRacer.ending.detail, '새로운 길을 찾았습니다.')
   assert.equal(nonRacer.g1Results.length, 0)
   assert.equal(nonRacer.profile.highSchool, null)
 

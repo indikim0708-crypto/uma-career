@@ -4,8 +4,14 @@ function SectionTitle({ children }) {
   return <p className="summary-card-kicker">{children}</p>
 }
 
+function displayWholeStat(value) {
+  return Math.round(Number(value) || 0)
+}
+
 const ResultSummaryCard = forwardRef(function ResultSummaryCard({ summary }, ref) {
   const { profile, finalStats, schoolHistory, raceSummary, majorWins, ending } = summary
+  const hasHighSchool = Boolean(schoolHistory.high)
+  const isAnotherPath = ending.type === 'ANOTHER PATH'
   return (
     <article className="result-summary-card" ref={ref} aria-hidden="true">
       <header className="summary-card-header">
@@ -25,7 +31,7 @@ const ResultSummaryCard = forwardRef(function ResultSummaryCard({ summary }, ref
             <SectionTitle>FINAL ABILITY</SectionTitle>
             <h2>최종 능력치</h2>
             <div className="summary-card-stats">
-              {finalStats.map((stat) => <div key={stat.id}><span>{stat.label}</span><strong>{stat.value}<small> / {stat.maximum}</small></strong><i><b style={{ width: `${Math.min(100, (stat.value / stat.maximum) * 100)}%` }} /></i></div>)}
+              {finalStats.map((stat) => <div key={stat.id}><span>{stat.label}</span><strong>{displayWholeStat(stat.value)}<small> / {stat.maximum}</small></strong><i><b style={{ width: `${Math.min(100, (stat.value / stat.maximum) * 100)}%` }} /></i></div>)}
             </div>
           </section>
 
@@ -40,18 +46,18 @@ const ResultSummaryCard = forwardRef(function ResultSummaryCard({ summary }, ref
           </section>
         </div>
 
-        <div className="summary-card-right">
-          <section className="summary-card-section summary-card-wins">
+        <div className={`summary-card-right${isAnotherPath ? ' summary-card-right-another-path' : ''}`}>
+          {hasHighSchool && <section className="summary-card-section summary-card-wins">
             <SectionTitle>G1 WINS</SectionTitle>
             <h2>G1 우승</h2>
             {majorWins.length ? <div className="summary-card-win-list">{majorWins.map((race, index) => <p key={`${race.turn}-${race.raceId}-${index}`}><b>★</b>{race.raceName}</p>)}</div> : <p className="summary-card-empty">G1 우승 없음</p>}
-          </section>
+          </section>}
 
-          <section className="summary-card-section summary-card-overview">
+          <section className={`summary-card-section summary-card-overview${isAnotherPath ? ' summary-card-another-path' : ''}`}>
             <SectionTitle>CAREER SUMMARY</SectionTitle>
             <h2>커리어 요약</h2>
-            <div className="summary-card-metrics"><div><span>G1 출전</span><strong>{raceSummary.g1Starts}회</strong></div><div><span>G1 우승</span><strong>{raceSummary.g1Wins}회</strong></div></div>
-            <div className="summary-card-ending"><span>{ending.type}</span><strong>{ending.title}</strong>{ending.detail && <p>{ending.detail}</p>}</div>
+            {hasHighSchool ? <div className="summary-card-metrics"><div><span>G1 출전</span><strong>{raceSummary.g1Starts}회</strong></div><div><span>G1 우승</span><strong>{raceSummary.g1Wins}회</strong></div></div> : <div className="summary-card-path-metrics"><span>고등부 진학</span><strong>다른 길을 선택했습니다</strong></div>}
+            <div className="summary-card-ending"><span>{ending.type}</span><strong>{ending.title}</strong>{ending.career && <em>최종 진로 · {ending.career}</em>}{ending.detail && <p>{ending.detail}</p>}</div>
           </section>
         </div>
       </div>

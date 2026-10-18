@@ -94,7 +94,7 @@ function collectNotes(career) {
 
 function buildEnding(career) {
   if (career.badEnding) return { type: 'BAD END', title: career.badEnding.title, detail: career.badEnding.body }
-  if (career.nonRacerEnding) return { type: 'ANOTHER PATH', title: career.nonRacerEnding.title, detail: career.nonRacerEnding.career ?? career.nonRacerEnding.body }
+  if (career.nonRacerEnding) return { type: 'ANOTHER PATH', title: career.nonRacerEnding.title, career: career.nonRacerEnding.career ?? null, detail: career.nonRacerEnding.body ?? career.nonRacerEnding.career }
   return { type: 'ENDING', title: '중앙 트레센 학원 고등부 졸업', detail: career.notice || '24턴의 커리어를 완주했습니다.' }
 }
 

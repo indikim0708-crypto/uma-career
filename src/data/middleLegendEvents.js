@@ -62,7 +62,7 @@ export const MIDDLE_LEGEND_EVENTS = [
   }),
   legend({
     id: 'legend_mcqueen', schoolId: CENTRAL, growthTypes: ['stayer'], characterName: '메지로 맥퀸', title: '이 정도는 해내셔야죠?', file: 'mejiro_mcqueen',
-    dialogue: '“딱히 당신을 걱정해서 온 것은 아닙니다만…\n장거리에서 이 정도는 버텨주셔야 곤란합니다.”', buttonText: '우아하게 끝까지 버틴다',
+    dialogue: '“딱히 당신을 걱정해서 온 것은 아닙니다만…\n장거리에서 이 정도는 버텨주셔야 곤란하지 않데스와.”', buttonText: '우아하게 끝까지 버틴다',
     great: [20, '흠잡을 데 없는 장거리 주행을 보여줬다.', { stamina: 9, intelligence: 4 }], success: [75, '절제된 페이스로 거리를 견뎠다.', { stamina: 7, intelligence: 2 }], failure: [5, '기본적인 호흡부터 다시 익혔다.', { stamina: 3 }],
   }),
   legend({

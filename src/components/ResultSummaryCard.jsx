@@ -16,7 +16,7 @@ const ResultSummaryCard = forwardRef(function ResultSummaryCard({ summary }, ref
   return (
     <article className="result-summary-card" ref={ref} aria-hidden="true">
       <header className="summary-card-header">
-        <div className="summary-card-brand"><span>UC</span><strong>UMA CAREER</strong></div>
+        <div className="summary-card-brand"><img src="/assets/uc.png" alt="" /><strong>UMA CAREER</strong></div>
         <p>CAREER RESULT</p>
         <div className="summary-card-profile">
           {profile.portraitId && <CharacterPortrait portraitId={profile.portraitId} className="summary-card-portrait" alt={`${profile.fullName}의 선택한 얼굴`} />}

@@ -390,7 +390,7 @@ button { border: 0; }
 .result-summary-card { background: radial-gradient(circle at 88% 5%, rgba(128, 65, 174, .32), transparent 27%), linear-gradient(145deg, #211a29, #141218 68%); box-sizing: border-box; color: #f7f2ff; font-family: Inter, Pretendard, 'Noto Sans KR', system-ui, sans-serif; height: 1000px; left: 0; overflow: hidden; pointer-events: none; position: fixed; top: 0; width: 1000px; z-index: -100; }
 .summary-card-header { border-bottom: 2px solid rgba(232, 202, 105, .7); min-height: 206px; padding: 34px 48px 26px; }
 .summary-card-brand { align-items: center; display: flex; font-size: 16px; gap: 10px; letter-spacing: .18em; }
-.summary-card-brand span { align-items: center; background: linear-gradient(145deg, #a66aed, #6d35ad); border: 1px solid rgba(255,255,255,.35); display: inline-flex; font: 700 12px Georgia, serif; height: 32px; justify-content: center; letter-spacing: 0; width: 32px; }
+.summary-card-brand img { display: block; height: 32px; object-fit: contain; width: auto; }
 .summary-card-header > p { color: #e8ca69; font-size: 12px; font-weight: 900; letter-spacing: .22em; margin: 22px 0 6px; }
 .summary-card-header h1 { font: 400 42px/1 Georgia, 'Noto Serif KR', serif; margin: 0; overflow-wrap: anywhere; }
 .summary-card-profile { align-items: center; display: flex; gap: 18px; }

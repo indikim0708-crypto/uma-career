@@ -57,7 +57,7 @@ function createResumeTurnProgress(career) {
 }
 
 function Brand() {
-  return <div className="brand"><span className="brand-mark">UC</span><span>UMA CAREER</span></div>
+  return <div className="brand"><img className="brand-mark" src="/assets/uc.png" alt="" /><span>UMA CAREER</span></div>
 }
 
 function StatGrid({ stats, previousStats = null }) {

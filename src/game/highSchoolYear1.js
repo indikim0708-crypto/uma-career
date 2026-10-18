@@ -212,7 +212,7 @@ const YEAR3_SPECIALS = {
   spring_first_g1: () => special('high3_spring_first_g1', '봄 첫 G1', '시니어 시즌의 첫 목표를 결정할 시간입니다.', [['OSAKA', '오사카배에 도전한다'], ['PREPARE', '천황상(봄)을 준비한다']]),
   sprint_mile: () => special('high3_sprint_mile', '1600m까지 영역을 넓힐 것인가?', '봄의 마일 G1에 도전할지 결정합니다.', [['YES', '야스다 기념에 도전한다'], ['NO', '단거리 노선에 집중한다']]),
   spring_mile: () => special('high3_spring_mile', '봄 마일 왕좌', '봄의 두 마일 G1 중 목표를 선택합니다.', [['VICTORIA', '빅토리아 마일에 출전한다'], ['YASUDA', '야스다 기념에 출전한다'], ['BOTH', '두 경기 모두 도전한다']]),
-  spring_grand_prix: () => special('high3_spring_grand_prix', '봄의 그랑프리', '천황상(봄)을 마친 뒤 다카라즈카 기념까지 달릴 수 있습니다.', [['YES', '다카라즈카 기념까지 도전한다'], ['NO', '가을 시즌을 준비한다']]),
+  spring_grand_prix: () => special('high3_spring_grand_prix', '봄의 그랑프리', '천황상(봄)을 마친 뒤 타카라즈카 기념까지 달릴 수 있습니다.', [['YES', '타카라즈카 기념까지 도전한다'], ['NO', '가을 시즌을 준비한다']]),
   autumn_2000: () => special('high3_autumn_2000', '가을의 2000m', '마일 챔피언십 전에 천황상(가을)에 도전할지 결정합니다.', [['YES', '천황상(가을)에 도전한다'], ['NO', '마일 챔피언십에 집중한다']]),
   mile_wall: () => special('high3_mile_wall', '마일의 벽을 넘어', '단거리에서 쌓은 속도로 마일의 왕좌에 도전할 수 있습니다.', [['YES', '마일 챔피언십에 도전한다'], ['NO', '단거리 선수로 시즌을 마무리한다']]),
   longer_stage: () => special('high3_longer_stage', '더 긴 무대로', '마일 왕좌를 지나 더 긴 무대에 도전할지 결정합니다.', [['JAPAN_CUP', '재팬 컵에 도전한다'], ['SAVE_ARIMA', '아리마 기념까지 힘을 아낀다'], ['END', '올해는 여기까지 달린다']]),
@@ -225,7 +225,7 @@ function lastSeasonSpecial(career) {
   const recommendations = {
     sprinter: '다카마쓰노미야 기념 · 스프린터즈 스테이크스',
     miler: '빅토리아 마일 / 야스다 기념 · 마일 챔피언십',
-    router: '오사카배 · 다카라즈카 기념 · 가을 왕도 G1',
+    router: '오사카배 · 타카라즈카 기념 · 가을 왕도 G1',
     stayer: '천황상(봄) · 재팬 컵 · 아리마 기념',
   }
   return special('high3_last_season_guide', '마지막 시즌', `졸업까지 앞으로 1년. 코치가 시니어 시즌의 G1 일정을 펼쳤습니다. 추천 목표: ${recommendations[career.growthType.id]}`, [['START', '시니어 시즌을 시작한다']])

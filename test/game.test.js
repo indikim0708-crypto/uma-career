@@ -41,7 +41,7 @@ import { INITIAL_TEAM_IDS, TEAM_BY_ID } from '../src/data/highSchoolTeams.js'
 import { STAYER_STAT_NORMS, TURN13_STAT_NORMS } from '../src/data/runningStyleRecommendationBalance.js'
 import { normalizeTurn13Stats, recommendRunningStyle, safeZScore } from '../src/game/runningStyleRecommendation.js'
 import { buildSaveSnapshot, CAREER_SAVE_KEY, deleteCareerSave, hasCareerSave, loadCareerSave, saveCareerState, validateSaveData } from '../src/game/saveSystem.js'
-import { buildCareerResultSummary } from '../src/game/resultSummary.js'
+import { buildCareerResultSummary, isFirstG1Win } from '../src/game/resultSummary.js'
 import { buildResultImageFilename, RESULT_SUMMARY_IMAGE_SIZE } from '../src/game/resultImageExport.js'
 import { loadProgressSpeedPreference, PROGRESS_SPEED_PREFERENCE_KEY, saveProgressSpeedPreference } from '../src/game/uiPreferences.js'
 
@@ -1887,6 +1887,18 @@ test('result summary supports non-racer and debut bad endings without high-schoo
   assert.equal(badEnd.ending.type, 'BAD END')
   assert.equal(badEnd.ending.title, '끝내 넘지 못한 데뷔의 벽')
   assert.equal(badEnd.achievements.length, 0)
+})
+
+test('first G1 win message eligibility excludes G2 wins and previous G1 wins', () => {
+  const g2Win = { raceId: 'yayoi_sho', grade: 'G2', finalPosition: 1 }
+  const firstG1Win = { raceId: 'satsuki_sho', grade: 'G1', finalPosition: 1 }
+  const laterG1Win = { raceId: 'japan_derby', grade: 'G1', finalPosition: 1 }
+  const previousG1History = [{ turn: 18, races: [firstG1Win] }]
+
+  assert.equal(isFirstG1Win([], g2Win), false)
+  assert.equal(isFirstG1Win([{ turn: 17, races: [g2Win] }], firstG1Win), true)
+  assert.equal(isFirstG1Win(previousG1History, laterG1Win), false)
+  assert.equal(isFirstG1Win([], { ...firstG1Win, finalPosition: 2 }), false)
 })
 
 test('result image filename preserves Korean names and strips unsafe characters', () => {

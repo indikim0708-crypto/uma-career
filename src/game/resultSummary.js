@@ -15,6 +15,17 @@ function collectRaces(history) {
   }).filter((race) => race && race.result !== 'DECLINED')
 }
 
+export function isFirstG1Win(history, race) {
+  const grade = race?.grade ?? race?.raceType
+  const finishPosition = race?.finalPosition ?? race?.finishPosition
+  if (grade !== 'G1' || finishPosition !== 1) return false
+  return collectRaces(history).filter((previousRace) => {
+    const previousGrade = previousRace.grade ?? previousRace.raceType
+    const previousFinishPosition = previousRace.finalPosition ?? previousRace.finishPosition
+    return previousGrade === 'G1' && previousFinishPosition === 1
+  }).length === 0
+}
+
 function collectAchievements(career) {
   const byId = new Map()
   for (const achievement of [...(career.highYear2?.achievements ?? []), ...(career.highYear3?.achievements ?? [])]) {

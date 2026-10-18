@@ -1828,6 +1828,8 @@ test('result summary keeps canonical race order and deduplicates achievements an
   const base = chooseGrowthType(createCareer({ lastName: '결과', firstName: '검증' }, seededRandom(901)), 'router')
   const raceOne = { raceId: 'satsuki_sho', raceName: '사츠키상', grade: 'G1', raceType: 'G1', turn: 18, periodLabel: '고등부 2학년 2분기', finishPosition: 1, won: true }
   const raceTwo = { raceId: 'japan_derby', raceName: '일본 더비', grade: 'G1', raceType: 'G1', turn: 18, periodLabel: '고등부 2학년 2분기', finishPosition: 3, won: false }
+  const debut = { raceId: 'debut', raceName: '첫 데뷔전', grade: 'DEBUT', raceType: 'DEBUT', turn: 13, finishPosition: 1, won: false }
+  const g2Race = { raceId: 'yayoi_sho', raceName: '야요이상', grade: 'G2', raceType: 'G2', turn: 17, finishPosition: 2, won: false }
   const career = {
     ...base,
     complete: true,
@@ -1838,6 +1840,8 @@ test('result summary keeps canonical race order and deduplicates achievements an
     history: [
       { kind: 'TURN', turn: 19, races: [], legendEvent: { legendId: 'ALMOND_EYE', characterName: '아몬드 아이', title: '시대를 넘어서는 시선' } },
       { kind: 'TURN', turn: 18, race: raceTwo, races: [raceOne, raceTwo] },
+      { kind: 'TURN', turn: 17, races: [g2Race] },
+      { kind: 'TURN', turn: 13, races: [debut] },
       { kind: 'TRANSFER', turn: 3, accepted: true, fromSchoolName: '메지로 초등학교', destinationSchoolName: '중앙 트레센 초등학교' },
       { id: 'middle_distance_change', changed: true, previousGrowthTypeName: '마일러', selectedGrowthTypeName: '라우터' },
     ],
@@ -1854,6 +1858,7 @@ test('result summary keeps canonical race order and deduplicates achievements an
   assert.equal(summary.raceSummary.g1Starts, 2)
   assert.equal(summary.raceSummary.g1Wins, 1)
   assert.equal(summary.raceSummary.g1Top3, 2)
+  assert.deepEqual(summary.raceRecords.map(({ grade, raceId, finalPosition }) => [grade, raceId, finalPosition]), [['DEBUT', 'debut', 1], ['G2', 'yayoi_sho', 2], ['G1', 'satsuki_sho', 1], ['G1', 'japan_derby', 3]])
   assert.deepEqual(summary.achievements.map(({ id }) => id), ['CLASSIC_TRIPLE_CROWN', 'AUTUMN_TRIPLE'])
   assert.deepEqual(summary.teamCareer.map(({ teamId }) => teamId), ['TEAM_SPICA', 'TEAM_RIGIL'])
   assert.equal(summary.legends[0].name, '아몬드 아이')
@@ -1874,6 +1879,7 @@ test('result summary supports non-racer and debut bad endings without high-schoo
   assert.equal(nonRacer.ending.career, '레이스 분석가')
   assert.equal(nonRacer.ending.detail, '새로운 길을 찾았습니다.')
   assert.equal(nonRacer.g1Results.length, 0)
+  assert.deepEqual(nonRacer.raceRecords, [])
   assert.equal(nonRacer.profile.highSchool, null)
 
   const badEnd = buildCareerResultSummary({

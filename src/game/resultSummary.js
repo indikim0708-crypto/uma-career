@@ -15,6 +15,11 @@ function collectRaces(history) {
   }).filter((race) => race && race.result !== 'DECLINED')
 }
 
+export function getRaceGradeLabel(race) {
+  const grade = race?.grade ?? race?.raceType
+  return grade === 'DEBUT' || race?.raceType === 'DEBUT' ? 'DEBUT' : grade === 'G2' || race?.raceType === 'G2' ? 'G2' : 'G1'
+}
+
 export function isFirstG1Win(history, race) {
   const grade = race?.grade ?? race?.raceType
   const finishPosition = race?.finalPosition ?? race?.finishPosition
@@ -114,6 +119,16 @@ export function buildCareerResultSummary(career) {
   const careerPath = collectCareerPath(career, middleSchool)
   const schoolHistory = collectSchoolHistory(career, middleSchool)
   const races = collectRaces(career.history)
+  const raceRecords = races
+    .filter((race) => ['DEBUT', 'G2', 'G1'].includes(getRaceGradeLabel(race)) && Number.isFinite(race.finalPosition ?? race.finishPosition))
+    .map((race) => ({
+      raceId: race.raceId,
+      raceName: race.raceName,
+      grade: getRaceGradeLabel(race),
+      finalPosition: race.finalPosition ?? race.finishPosition,
+      turn: race.turn,
+      isDebut: getRaceGradeLabel(race) === 'DEBUT',
+    }))
   const g1Results = races.filter((race) => race.grade === 'G1' || race.raceType === 'G1')
   const teamCareer = collectTeamCareer(career)
   const runningStyle = getRunningStyle(career.runningStyle)
@@ -133,6 +148,7 @@ export function buildCareerResultSummary(career) {
     careerPath,
     teamCareer,
     races,
+    raceRecords,
     raceSummary: {
       starts: races.length,
       wins: races.filter((race) => race.finishPosition === 1 || race.won).length,

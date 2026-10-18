@@ -177,7 +177,7 @@ function GrowthPlan({ career, selectedType, onSelect, onBegin, onBack }) {
       <div className="setup-layout growth-plan-layout">
         <button className="back-button" type="button" onClick={onBack}>← 출신과 능력 확인</button>
         <section className="type-section">
-          <div className="section-heading"><div><p className="section-kicker">03 · GROWTH PLAN</p><h2>{career.fullName}을 어떤 선수로<br />성장시킬까요?</h2></div></div>
+          <div className="section-heading"><div><p className="section-kicker">03 · GROWTH PLAN</p><h2>{career.fullName},<br />어떤 선수로 성장시킬까요?</h2></div></div>
           <div className="type-grid">
             {GROWTH_TYPES.map((type) => (
               <button className={`type-card ${selectedType === type.id ? 'selected' : ''}`} type="button" key={type.id} onClick={() => onSelect(type.id)} aria-pressed={selectedType === type.id}>

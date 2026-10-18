@@ -46,12 +46,20 @@ export function initializeAnalytics() {
 }
 
 export function trackEvent(eventName, parameters = {}) {
-  if (!isAllowedHost()) return false
+  if (!isAllowedHost()) {
+    console.warn('[GA4 DEBUG] skipped: hostname is not allowed', typeof window === 'undefined' ? 'server' : window.location.hostname)
+    return false
+  }
   try {
-    if (typeof window.gtag !== 'function') return false
+    if (typeof window.gtag !== 'function') {
+      console.warn('[GA4 DEBUG] skipped: window.gtag is unavailable', eventName)
+      return false
+    }
+    console.log('[GA4 DEBUG] sending', eventName, parameters)
     window.gtag('event', eventName, parameters)
     return true
-  } catch {
+  } catch (error) {
+    console.warn('[GA4 DEBUG] send failed', eventName, error)
     return false
   }
 }

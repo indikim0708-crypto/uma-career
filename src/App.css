@@ -175,7 +175,7 @@ button { border: 0; }
 .career-summary { padding: 14px; }
 .career-summary.has-character-portrait { align-items: start; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) minmax(88px, 31%); }
 .career-summary-copy { min-width: 0; }
-.chapter-portrait { border: 1px solid rgba(232, 202, 105, .5); box-shadow: 0 8px 18px rgba(0, 0, 0, .28); max-width: 120px; }
+.chapter-portrait { align-self: start; border: 1px solid rgba(232, 202, 105, .5); box-shadow: 0 8px 18px rgba(0, 0, 0, .28); justify-self: end; max-width: 120px; }
 .chapter-line { align-items: center; display: flex; justify-content: space-between; }
 .chapter-line > span { color: #77707e; font-size: 10px; letter-spacing: 0.08em; }
 .character-name { color: var(--gold); font-size: 12px; font-weight: 700; margin: 8px 0 0; }

@@ -2,6 +2,12 @@ import { HIGH_SCHOOL_LEGEND_BY_ID, HIGH_SCHOOL_LEGEND_EVENTS } from '../data/hig
 
 export const HIGH_LEGEND_TURNS = [16, 19, 23]
 
+export function getHighLegendTurns(potential) {
+  if (potential <= 50) return [19]
+  if (potential <= 70) return [16, 23]
+  return HIGH_LEGEND_TURNS
+}
+
 const GROWTH_BONUSES = {
   sprinter: { SAKURA_BAKUSHIN_O: 18, SILENCE_SUZUKA: 8, TAIKI_SHUTTLE: 6 },
   miler: { TAIKI_SHUTTLE: 18, SILENCE_SUZUKA: 5, ALMOND_EYE: 6 },
@@ -79,7 +85,7 @@ export function selectHighSchoolLegend(career, turnNumber = career.turnIndex + 1
 }
 
 export function ensureHighSchoolLegendPlan(career, turnNumber, rng = Math.random) {
-  if (!HIGH_LEGEND_TURNS.includes(turnNumber)) return career
+  if (!getHighLegendTurns(career.potential).includes(turnNumber)) return career
   const state = career.highSchoolLegend ?? createHighSchoolLegendState()
   if (state.plans[turnNumber]) return career.highSchoolLegend ? career : { ...career, highSchoolLegend: state }
   const selected = selectHighSchoolLegend({ ...career, highSchoolLegend: state }, turnNumber, rng)

@@ -35,7 +35,7 @@ import { HIGH_YEAR2_RACES, TURN18_RACES, TURN20_RACES } from '../src/data/highSc
 import { HIGH_SCHOOL_YEAR3_EVENTS } from '../src/data/highSchoolYear3Events.js'
 import { HIGH_YEAR3_RACES } from '../src/data/highSchoolYear3Races.js'
 import { HIGH_SCHOOL_LEGEND_EVENTS } from '../src/data/highSchoolLegendEvents.js'
-import { createHighSchoolLegendState, ensureHighSchoolLegendPlan, getHighLegendWeights, selectHighSchoolLegend } from '../src/game/highSchoolLegend.js'
+import { createHighSchoolLegendState, ensureHighSchoolLegendPlan, getHighLegendTurns, getHighLegendWeights, selectHighSchoolLegend } from '../src/game/highSchoolLegend.js'
 import { applyTeamTurnPlan, calculateTeamReputation, createInitialTeamOffers, createTeamState, createTeamTurnPlan, getEligibleTransferTeams, getTeamTrainingPoints, prepareTeamTransferCheckpoint, resolveInitialTeamOffer, resolveTeamTransferOffer } from '../src/game/highSchoolTeam.js'
 import { INITIAL_TEAM_IDS, TEAM_BY_ID } from '../src/data/highSchoolTeams.js'
 import { STAYER_STAT_NORMS, TURN13_STAT_NORMS } from '../src/data/runningStyleRecommendationBalance.js'
@@ -1532,8 +1532,17 @@ test('high school legend selection excludes middle and high school repeats and k
   assert.ok(counts.ALMOND_EYE > counts.SUPER_CREEK)
 })
 
-test('turns 16, 19, and 23 award exactly one high school legend before later race content', () => {
-  const career = finishCareer('router', 771)
+test('high school legend schedule changes only with the requested potential tiers', () => {
+  assert.deepEqual(getHighLegendTurns(0), [19])
+  assert.deepEqual(getHighLegendTurns(50), [19])
+  assert.deepEqual(getHighLegendTurns(51), [16, 23])
+  assert.deepEqual(getHighLegendTurns(70), [16, 23])
+  assert.deepEqual(getHighLegendTurns(71), [16, 19, 23])
+  assert.deepEqual(getHighLegendTurns(100), [16, 19, 23])
+})
+
+test('high-potential careers retain legends on turns 16, 19, and 23 before later race content', () => {
+  const career = finishCareer('router', 771, { potential: 100 })
   assert.equal(career.highSchoolLegend.completedLegendIds.length, 3)
   assert.equal(new Set(career.highSchoolLegend.completedLegendIds).size, 3)
   for (const turn of [16, 19, 23]) {
@@ -1544,9 +1553,22 @@ test('turns 16, 19, and 23 award exactly one high school legend before later rac
   }
 })
 
+test('low and middle potential careers only plan their scheduled high school legends', () => {
+  const base = {
+    ...chooseGrowthType(createCareer({ lastName: '전설', firstName: '구간' }, () => 0.5), 'router'),
+    runningStyle: 'SENKO',
+    middleState: { completedLegendIds: [] },
+    highSchoolLegend: createHighSchoolLegendState(),
+  }
+  const plannedTurns = (potential) => [16, 19, 23].filter((turn) => ensureHighSchoolLegendPlan({ ...base, potential }, turn, () => .5).highSchoolLegend.plans[turn])
+  assert.deepEqual(plannedTurns(50), [19])
+  assert.deepEqual(plannedTurns(70), [16, 23])
+})
+
 test('a high school legend plan is rolled once and rapid selection cannot duplicate its reward', () => {
   const base = {
     ...chooseGrowthType(createCareer({ lastName: '전설', firstName: '고정' }, () => 0.5), 'router'),
+    potential: 100,
     turnIndex: 15,
     runningStyle: 'NIGE',
     middleState: { completedLegendIds: [] },

@@ -67,6 +67,20 @@ function collectCareerPath(career, middleSchool) {
   return path
 }
 
+function collectSchoolHistory(career, middleSchool) {
+  const acceptedTransfers = chronologicalHistory(career.history).filter((entry) => entry.kind === 'TRANSFER' && entry.accepted)
+  const elementary = [acceptedTransfers[0]?.fromSchoolName ?? career.school?.name].filter(Boolean)
+  for (const transfer of acceptedTransfers) {
+    if (elementary.at(-1) !== transfer.destinationSchoolName) elementary.push(transfer.destinationSchoolName)
+  }
+  if (career.school?.name && elementary.at(-1) !== career.school.name) elementary.push(career.school.name)
+  return {
+    elementary,
+    middle: middleSchool?.displayName ?? career.middleState?.schoolName ?? null,
+    high: career.highSchoolState || career.highSchoolAdmission?.accepted ? '중앙 트레센 학원 고등부' : null,
+  }
+}
+
 function collectNotes(career) {
   const notes = []
   const distanceChange = (career.history ?? []).find((entry) => entry.id === 'middle_distance_change' && entry.changed)
@@ -87,6 +101,7 @@ function buildEnding(career) {
 export function buildCareerResultSummary(career) {
   const middleSchool = getMiddleSchoolById(career.middleState?.schoolId)
   const careerPath = collectCareerPath(career, middleSchool)
+  const schoolHistory = collectSchoolHistory(career, middleSchool)
   const races = collectRaces(career.history)
   const g1Results = races.filter((race) => race.grade === 'G1' || race.raceType === 'G1')
   const teamCareer = collectTeamCareer(career)
@@ -103,6 +118,7 @@ export function buildCareerResultSummary(career) {
       finalTeam: TEAM_BY_ID[career.teamState?.currentTeamId]?.name ?? null,
     },
     finalStats: STATS.map(({ id, label }) => ({ id, label, value: career.stats?.[id] ?? 0, maximum: 120 })),
+    schoolHistory,
     careerPath,
     teamCareer,
     races,

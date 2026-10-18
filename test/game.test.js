@@ -42,7 +42,7 @@ import { STAYER_STAT_NORMS, TURN13_STAT_NORMS } from '../src/data/runningStyleRe
 import { normalizeTurn13Stats, recommendRunningStyle, safeZScore } from '../src/game/runningStyleRecommendation.js'
 import { buildSaveSnapshot, CAREER_SAVE_KEY, deleteCareerSave, hasCareerSave, loadCareerSave, saveCareerState, validateSaveData } from '../src/game/saveSystem.js'
 import { buildCareerResultSummary } from '../src/game/resultSummary.js'
-import { buildResultImageFilename } from '../src/game/resultImageExport.js'
+import { buildResultImageFilename, RESULT_SUMMARY_IMAGE_SIZE } from '../src/game/resultImageExport.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -1880,4 +1880,8 @@ test('result summary supports non-racer and debut bad endings without high-schoo
 
 test('result image filename preserves Korean names and strips unsafe characters', () => {
   assert.equal(buildResultImageFilename('심볼리 / 루나:*?', new Date(2026, 9, 18)), 'uma-career_심볼리루나_2026-10-18.png')
+})
+
+test('career summary export uses a fixed square canvas', () => {
+  assert.equal(RESULT_SUMMARY_IMAGE_SIZE, 1000)
 })

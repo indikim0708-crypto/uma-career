@@ -22,7 +22,7 @@ import { HIGH_YEAR2_RACES, HIGH_YEAR2_ROUTE_LABELS } from './data/highSchoolYear
 import { TEAM_BY_ID } from './data/highSchoolTeams.js'
 import { resolveTeamTransferOffer } from './game/highSchoolTeam.js'
 import { deleteCareerSave, loadCareerSave, saveCareerState } from './game/saveSystem.js'
-import ResultExportCard from './components/ResultExportCard.jsx'
+import ResultSummaryCard from './components/ResultSummaryCard.jsx'
 import { buildCareerResultSummary } from './game/resultSummary.js'
 import { buildResultImageFilename, createResultImageBlob, saveOrShareResultImage } from './game/resultImageExport.js'
 
@@ -618,7 +618,6 @@ function Complete({ career, onRestart }) {
   const exportingRef = useRef(false)
   const [isExporting, setIsExporting] = useState(false)
   const [exportStatus, setExportStatus] = useState('')
-  const [generatedDate] = useState(() => new Date().toLocaleDateString('ko-KR'))
   const summary = buildCareerResultSummary(career)
 
   const handleExport = async () => {
@@ -649,7 +648,7 @@ function Complete({ career, onRestart }) {
       {exportStatus && <p className="result-export-status" role="status">{exportStatus}</p>}
       <button className="secondary-button" type="button" onClick={onRestart}><span>새로운 커리어 시작</span><span aria-hidden="true">↻</span></button>
     </div>
-    <ResultExportCard ref={exportRef} summary={summary} generatedDate={generatedDate} />
+    <ResultSummaryCard ref={exportRef} summary={summary} />
   </>
 
   if (career.badEnding) {

@@ -1,4 +1,5 @@
 const EXPORT_BACKGROUND = '#17131d'
+export const RESULT_SUMMARY_IMAGE_SIZE = 1000
 
 export function buildResultImageFilename(fullName, date = new Date()) {
   const safeName = (fullName || 'career').replace(/[\\/:*?"<>|\s]+/g, '').slice(0, 40) || 'career'
@@ -25,16 +26,15 @@ export async function createResultImageBlob(node) {
   const { toBlob } = await import('html-to-image')
   if (document.fonts?.ready) await document.fonts.ready
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-  const height = Math.ceil(node.scrollHeight)
   const blob = await toBlob(node, {
     backgroundColor: EXPORT_BACKGROUND,
     cacheBust: true,
-    height,
+    height: RESULT_SUMMARY_IMAGE_SIZE,
     pixelRatio: 1,
-    width: 1080,
+    width: RESULT_SUMMARY_IMAGE_SIZE,
   })
   if (!blob) throw new Error('PNG generation returned an empty result.')
-  return { blob, height, width: 1080 }
+  return { blob, height: RESULT_SUMMARY_IMAGE_SIZE, width: RESULT_SUMMARY_IMAGE_SIZE }
 }
 
 export async function saveOrShareResultImage({ blob, filename, title = 'UMA CAREER 결과', navigatorObject = navigator }) {

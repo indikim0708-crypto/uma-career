@@ -27,7 +27,7 @@ import { createTurnProgressPlan, getEligibleProgressMessages, getProgressDuratio
 import { ADMISSION_SEQUENCE_DURATION_MS, createAdmissionPlan } from '../src/game/admissionSequence.js'
 import { beginHighSchoolAdmission, calculateHighSchoolAdmissionScore, calculateHighSchoolSpecialtyScore, calculateHighSchoolSpecialtyStat, completeHighSchoolAdmissionSequence, enterHighSchool, getHighSchoolAdmissionChance } from '../src/game/highSchoolAdmission.js'
 import { resolveNonRacerEnding } from '../src/game/nonRacerEndingResolver.js'
-import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, createHighYear3State, dismissHighYear3Achievement, finishHighSchoolEvent, finishHighSchoolLegend, finishHighSchoolRace, finishHighSchoolRunningStyle, resolveHighSchoolRace, resolveHighYear2Special, resolveHighYear3Special, resolveInitialTeamSelection, selectHighSchoolEventChoice, selectHighSchoolLegendChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
+import { completeHighSchoolRaceSequence, createHighSchoolState, createHighYear2State, createHighYear3State, dismissHighYear3Achievement, finishHighSchoolEvent, finishHighSchoolLegend, finishHighSchoolRace, finishHighSchoolRunningStyle, isSuccessfulDebutPosition, resolveHighSchoolRace, resolveHighYear2Special, resolveHighYear3Special, resolveInitialTeamSelection, selectHighSchoolEventChoice, selectHighSchoolLegendChoice, selectHighSchoolRunningStyle } from '../src/game/highSchoolYear1.js'
 import { createRacePlan } from '../src/game/racePlan.js'
 import { calculateDistanceScore, calculatePositionKeepScore, calculateStaminaPenalty, calculateStyleFitScore, getPositionKeepRange, getRaceFieldStrength, simulateRace } from '../src/game/raceSimulation.js'
 import { HIGH_SCHOOL_YEAR2_EVENTS } from '../src/data/highSchoolYear2Events.js'
@@ -44,6 +44,7 @@ import { buildSaveSnapshot, CAREER_SAVE_KEY, deleteCareerSave, hasCareerSave, lo
 import { buildCareerResultSummary, getBaseCareerTitle, getSeasonCareerTitle, isFirstG1Win } from '../src/game/resultSummary.js'
 import { buildResultImageFilename, RESULT_SUMMARY_IMAGE_SIZE } from '../src/game/resultImageExport.js'
 import { loadProgressSpeedPreference, PROGRESS_SPEED_PREFERENCE_KEY, saveProgressSpeedPreference } from '../src/game/uiPreferences.js'
+import { beginTurnHistory } from '../src/game/history.js'
 
 function makeHighYear2Career(growthTypeId = 'router') {
   const rng = seededRandom(900)
@@ -938,13 +939,60 @@ test('race result and its plan resolve once before the sequence can award reward
   assert.ok(resolved.highSchoolState.racePlan)
   assert.ok(resolved.highSchoolState.pendingRaceResult.finishPosition >= 1 && resolved.highSchoolState.pendingRaceResult.finishPosition <= 12)
   assert.equal(resolved.highSchoolState.racePlan.finalPosition, resolved.highSchoolState.pendingRaceResult.finishPosition)
-  assert.equal(resolved.highSchoolState.pendingRaceResult.result, resolved.highSchoolState.pendingRaceResult.finishPosition <= 5 ? 'SUCCESS' : 'FAILURE')
+  assert.equal(resolved.highSchoolState.pendingRaceResult.result, resolved.highSchoolState.pendingRaceResult.finishPosition === 1 ? 'SUCCESS' : 'FAILURE')
   assert.equal(resolved.highSchoolState.pendingRaceResult.startPosition, resolved.highSchoolState.racePlan.checkpoints[0].position)
   assert.equal(resolved.highSchoolState.pendingRaceResult.finalStraightPosition, resolved.highSchoolState.racePlan.finalPosition)
   assert.strictEqual(resolveHighSchoolRace(resolved, 'run', () => 0), resolved)
   assert.strictEqual(finishHighSchoolRace(resolved, () => 0), resolved)
   const sequenceComplete = completeHighSchoolRaceSequence(resolved)
   assert.equal(sequenceComplete.highSchoolState.racePlan.completed, true)
+})
+
+test('only first place clears both debut attempts', () => {
+  assert.equal(isSuccessfulDebutPosition(1), true)
+  for (const position of [2, 3, 12]) assert.equal(isSuccessfulDebutPosition(position), false)
+})
+
+test('failed debut and retry results both remain in history before the existing bad ending', () => {
+  const stats = { speed: 60, stamina: 50, power: 58, grit: 46, intelligence: 55 }
+  const createDebutCareer = (attempt, finishPosition, history = []) => {
+    const turnIndex = attempt === 1 ? 13 : 14
+    const career = {
+      ...endingCareer(stats, 'miler', history),
+      turnIndex,
+      condition: '보통',
+      runningStyle: 'SENKO',
+      logs: [],
+      highSchoolState: {
+        ...createHighSchoolState(),
+        pendingRaceResult: {
+          raceId: attempt === 1 ? 'debut' : 'debut_retry',
+          raceName: attempt === 1 ? '첫 데뷔전' : '데뷔 재도전',
+          raceType: 'DEBUT',
+          distance: '데뷔전',
+          attempt,
+          finishPosition,
+          result: isSuccessfulDebutPosition(finishPosition) ? 'SUCCESS' : 'FAILURE',
+          won: false,
+        },
+        racePlan: { completed: true },
+      },
+    }
+    return {
+      ...career,
+      currentTurnHistory: { ...beginTurnHistory(career, TURNS[turnIndex]), statsAfterBase: { ...stats }, expectedGrowth: 1 },
+    }
+  }
+
+  const failedFirst = finishHighSchoolRace(createDebutCareer(1, 3), () => 0)
+  assert.equal(failedFirst.complete, false)
+  assert.equal(failedFirst.highSchoolState.debutStatus, 'FAILED_ONCE')
+  assert.equal(failedFirst.history[0].race.finishPosition, 3)
+
+  const failedRetry = finishHighSchoolRace(createDebutCareer(2, 2, failedFirst.history), () => 0)
+  assert.equal(failedRetry.complete, true)
+  assert.equal(failedRetry.badEnding.id, 'failed_debut_bad_end')
+  assert.deepEqual(failedRetry.history.slice(0, 2).map((entry) => [entry.race.raceName, entry.race.finishPosition]), [['데뷔 재도전', 2], ['첫 데뷔전', 3]])
 })
 
 test('race score helpers use the requested position, style, distance, and stamina formulas', () => {

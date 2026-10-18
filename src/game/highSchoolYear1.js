@@ -49,6 +49,10 @@ export function getHighSchoolRaceScore(career, raceId = 'debut') {
   return stamina * .30 + grit * .20 + speed * .20 + intelligence * .20 + power * .10
 }
 
+export function isSuccessfulDebutPosition(finalPosition) {
+  return finalPosition === 1
+}
+
 function createDebutRace(career, retry) {
   const raceScore = getHighSchoolRaceScore(career)
   return { id: retry ? 'debut_retry' : 'debut', raceId: retry ? 'debut_retry' : 'debut', raceName: retry ? '데뷔 재도전' : '첫 데뷔전', raceType: 'DEBUT', distance: '데뷔전', attempt: retry ? 2 : 1, raceScore, fieldStrengthRange: FIELD_STRENGTH_RANGES.DEBUT, choices: [{ id: 'run', text: '데뷔전에 출전한다' }] }
@@ -435,7 +439,7 @@ export function resolveHighSchoolRace(career, choiceId = 'run', rng = Math.rando
     fieldStrength: racePlan.fieldStrength,
     finishPosition,
     won,
-    result: isDebut ? (finishPosition <= 5 ? 'SUCCESS' : 'FAILURE') : won ? 'WIN' : finishPosition <= 3 ? 'PLACE' : finishPosition <= 6 ? 'MIDFIELD' : 'LOW',
+    result: isDebut ? (isSuccessfulDebutPosition(finishPosition) ? 'SUCCESS' : 'FAILURE') : won ? 'WIN' : finishPosition <= 3 ? 'PLACE' : finishPosition <= 6 ? 'MIDFIELD' : 'LOW',
     startPosition: racePlan.checkpoints[0].position,
     earlyPosition: racePlan.checkpoints[1].position,
     middlePosition: racePlan.checkpoints[2].position,

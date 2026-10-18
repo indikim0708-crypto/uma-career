@@ -57,19 +57,15 @@ const ResultSummaryCard = forwardRef(function ResultSummaryCard({ summary }, ref
             <SectionTitle>RACE RECORD</SectionTitle>
             <h2>레이스 전적</h2>
             {raceRecords.length ? <div className="summary-card-race-list">{raceRecords.map((race, index) => <p key={`${race.turn}-${race.raceId}-${index}`}><b className={`race-grade-${race.grade.toLowerCase()}`}>[{race.grade}]</b><span>{race.raceName}</span><strong>{race.finalPosition}착</strong></p>)}</div> : <p className="summary-card-empty">출전 기록 없음</p>}
-          </section> : <section className="summary-card-section summary-card-overview">
+          </section> : <section className="summary-card-section summary-card-overview summary-card-another-path">
             <SectionTitle>CAREER SUMMARY</SectionTitle>
             <h2>커리어 요약</h2>
-            <div className="summary-card-path-metrics"><span>고등부 진학</span><strong>다른 길을 선택했습니다</strong></div>
+            <div className="summary-card-ending"><span>{ending.type}</span><strong>{ending.title}</strong>{ending.career && <em>최종 진로 · {ending.career}</em>}{ending.detail && <p>{ending.detail}</p>}</div>
           </section>}
         </div>
 
-        <div className={`summary-card-bottom${isAnotherPath ? ' summary-card-bottom-another-path' : ''}`}>
-          {isAnotherPath ? <section className="summary-card-section summary-card-another-path">
-            <SectionTitle>ANOTHER PATH</SectionTitle>
-            <h2>또 다른 길</h2>
-            <div className="summary-card-ending"><span>{ending.type}</span><strong>{ending.title}</strong>{ending.career && <em>최종 진로 · {ending.career}</em>}{ending.detail && <p>{ending.detail}</p>}</div>
-          </section> : <><section className="summary-card-section summary-card-overview">
+        {!isAnotherPath && <div className="summary-card-bottom">
+          <section className="summary-card-section summary-card-overview">
             <SectionTitle>CAREER SUMMARY</SectionTitle>
             <h2>커리어 요약</h2>
             <div className="summary-card-metrics"><div><span>G1 출전</span><strong>{raceSummary.g1Starts}회</strong></div><div><span>G1 우승</span><strong>{raceSummary.g1Wins}회</strong></div></div>
@@ -79,8 +75,8 @@ const ResultSummaryCard = forwardRef(function ResultSummaryCard({ summary }, ref
             <SectionTitle>ACHIEVEMENTS</SectionTitle>
             <h2>시즌 업적</h2>
             {achievements.length ? <div className="summary-card-achievement-list">{achievements.map((achievement) => <p key={achievement.id}>◆ {achievement.name}</p>)}</div> : <p className="summary-card-empty">획득한 시즌 업적 없음</p>}
-          </section></>}
-        </div>
+          </section>
+        </div>}
       </div>
 
       <footer>UMA CAREER</footer>

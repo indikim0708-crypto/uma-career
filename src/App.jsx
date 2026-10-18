@@ -772,12 +772,13 @@ function App() {
 
   const checkpointCareer = (nextCareer, nextScreen = screen, nextNames = names, nextSelectedType = selectedType) => {
     let trackedCareer = nextCareer
-    if (trackedCareer?.highSchoolAdmission?.resolved && !trackedCareer.analyticsAdmissionSent) {
-      trackHighSchoolAdmission(trackedCareer)
+    if (trackedCareer?.growthType && !trackedCareer.analyticsStartSent && trackCareerStart(trackedCareer)) {
+      trackedCareer = { ...trackedCareer, analyticsStartSent: true }
+    }
+    if (trackedCareer?.highSchoolAdmission?.resolved && !trackedCareer.analyticsAdmissionSent && trackHighSchoolAdmission(trackedCareer)) {
       trackedCareer = { ...trackedCareer, analyticsAdmissionSent: true }
     }
-    if (trackedCareer?.complete && !trackedCareer.analyticsEndSent) {
-      trackCareerEnd(trackedCareer)
+    if (trackedCareer?.complete && !trackedCareer.analyticsEndSent && trackCareerEnd(trackedCareer)) {
       trackedCareer = { ...trackedCareer, analyticsEndSent: true }
     }
     setCareer(trackedCareer)
@@ -826,9 +827,7 @@ function App() {
   }
 
   const beginCareer = () => {
-    const next = chooseGrowthType(career, selectedType)
-    if (!next.analyticsStartSent) trackCareerStart(next)
-    checkpointCareer({ ...next, analyticsStartSent: true }, SCREENS.CAREER)
+    checkpointCareer(chooseGrowthType(career, selectedType), SCREENS.CAREER)
   }
 
   const handleAdvance = () => {

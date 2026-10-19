@@ -62,12 +62,18 @@ function createDebutRace(career, retry) {
 function createG1Race(career) {
   const miler = career.growthType.id === 'miler'
   const raceId = miler ? 'g1_asahi' : 'g1_hopeful'
-  return { id: raceId, raceId, raceName: miler ? '아사히배 퓨처러티 스테이크스' : '호프풀 스테이크스', raceType: 'G1', distance: miler ? '1600m' : '2000m', attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), fieldStrengthRange: FIELD_STRENGTH_RANGES.HIGH_YEAR1_G1, choices: [{ id: 'enter', text: 'G1에 도전한다' }, { id: 'decline', text: '올해는 경험을 쌓는 데 집중한다' }] }
+  return { id: raceId, raceId, raceName: miler ? '아사히배 퓨처러티 스테이크스' : '호프풀 스테이크스', raceType: 'G1', distance: miler ? '1600m' : '2000m', attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), fieldStrengthRange: miler ? FIELD_STRENGTH_RANGES.HIGH_YEAR1_G1 : FIELD_STRENGTH_RANGES.HOPEFUL_STAKES, choices: [{ id: 'enter', text: 'G1에 도전한다' }, { id: 'decline', text: '올해는 경험을 쌓는 데 집중한다' }] }
 }
 
 function createYear2Race(career, raceId) {
   const race = HIGH_YEAR2_RACES[raceId]
-  const fieldStrengthRange = race.grade === 'G2' ? (raceId === HIGH_YEAR2_G2_BY_GROWTH.early[career.growthType.id] ? FIELD_STRENGTH_RANGES.EARLY_G2 : FIELD_STRENGTH_RANGES.LATE_G2) : FIELD_STRENGTH_RANGES.HIGH_YEAR2_G1
+  const fieldStrengthRange = race.grade === 'G2'
+    ? (raceId === HIGH_YEAR2_G2_BY_GROWTH.early[career.growthType.id] ? FIELD_STRENGTH_RANGES.EARLY_G2 : FIELD_STRENGTH_RANGES.LATE_G2)
+    : raceId === 'satsuki_sho'
+      ? FIELD_STRENGTH_RANGES.SATSUKI_SHO
+      : raceId === 'japan_derby'
+        ? FIELD_STRENGTH_RANGES.JAPAN_DERBY
+        : FIELD_STRENGTH_RANGES.HIGH_YEAR2_G1
   const minimumStamina = raceId === 'kikuka_sho' ? 80 : null
   return { ...race, id: race.raceId, raceType: race.grade, attempt: 1, raceScore: getHighSchoolRaceScore(career, raceId), fieldStrengthRange, minimumStamina, choices: [{ id: 'enter', text: `${race.raceName}에 출전한다` }] }
 }

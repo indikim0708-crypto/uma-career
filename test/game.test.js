@@ -1023,6 +1023,12 @@ test('race score helpers use the requested position, style, distance, and stamin
   assert.ok(debutFieldStrength >= 45 && debutFieldStrength <= 55)
   const retryFieldStrength = getRaceFieldStrength({ raceType: 'DEBUT', fieldStrengthRange: FIELD_STRENGTH_RANGES.DEBUT_RETRY }, () => .5)
   assert.ok(retryFieldStrength >= 40 && retryFieldStrength <= 50)
+  const hopefulFieldStrength = getRaceFieldStrength({ raceType: 'G1', fieldStrengthRange: FIELD_STRENGTH_RANGES.HOPEFUL_STAKES }, () => .5)
+  assert.ok(hopefulFieldStrength >= 65 && hopefulFieldStrength <= 75)
+  const satsukiFieldStrength = getRaceFieldStrength({ raceType: 'G1', fieldStrengthRange: FIELD_STRENGTH_RANGES.SATSUKI_SHO }, () => .5)
+  assert.ok(satsukiFieldStrength >= 80 && satsukiFieldStrength <= 95)
+  const derbyFieldStrength = getRaceFieldStrength({ raceType: 'G1', fieldStrengthRange: FIELD_STRENGTH_RANGES.JAPAN_DERBY }, () => .5)
+  assert.ok(derbyFieldStrength >= 75 && derbyFieldStrength <= 110)
 
   const frontRunnerStats = { speed: 75, stamina: 72, power: 50, grit: 45, intelligence: 75 }
   const closerStats = { speed: 50, stamina: 48, power: 75, grit: 72, intelligence: 75 }

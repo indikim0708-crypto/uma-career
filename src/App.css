@@ -387,7 +387,7 @@ button { border: 0; }
 .another-path h1 { font: 400 clamp(30px, 9vw, 44px)/1.1 Georgia, serif; margin: 0; }
 .another-path > p:last-child { color: var(--muted); font-size: 13px; margin: 16px 0 0; }
 
-.result-summary-card { background: radial-gradient(circle at 88% 5%, rgba(128, 65, 174, .32), transparent 27%), linear-gradient(145deg, #211a29, #141218 68%); box-sizing: border-box; color: #f7f2ff; font-family: Inter, Pretendard, 'Noto Sans KR', system-ui, sans-serif; height: 1000px; left: 0; overflow: hidden; pointer-events: none; position: fixed; top: 0; width: 1000px; z-index: -100; }
+.result-summary-card { background: radial-gradient(circle at 88% 5%, rgba(128, 65, 174, .32), transparent 27%), linear-gradient(145deg, #211a29, #141218 68%); box-sizing: border-box; color: #f7f2ff; font-family: Inter, Pretendard, 'Noto Sans KR', system-ui, sans-serif; height: 1000px; left: 0; overflow: hidden; pointer-events: none; position: fixed; text-size-adjust: 100%; top: 0; -webkit-text-size-adjust: 100%; width: 1000px; z-index: -100; }
 .summary-card-header { border-bottom: 2px solid rgba(232, 202, 105, .7); min-height: 206px; padding: 34px 48px 26px; }
 .summary-card-brand { align-items: center; display: flex; font-size: 16px; gap: 10px; letter-spacing: .18em; }
 .summary-card-brand img { display: block; height: 32px; object-fit: contain; width: auto; }
@@ -396,8 +396,8 @@ button { border: 0; }
 .summary-card-profile { align-items: center; display: flex; gap: 18px; }
 .summary-card-profile > div { min-width: 0; }
 .summary-card-portrait { border: 1px solid rgba(232, 202, 105, .75); box-shadow: 0 8px 20px rgba(0, 0, 0, .3); flex: 0 0 126px; height: 126px; width: 126px; }
-.summary-card-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
-.summary-card-meta span { background: rgba(232,202,105,.1); border: 1px solid rgba(232,202,105,.35); color: #f4dda0; font-size: 12px; font-weight: 800; padding: 5px 9px; }
+.summary-card-meta { display: inline-flex; flex-wrap: nowrap; gap: 7px; margin-top: 14px; max-width: 100%; white-space: nowrap; }
+.summary-card-meta span { background: rgba(232,202,105,.1); border: 1px solid rgba(232,202,105,.35); color: #f4dda0; flex: 0 0 auto; font-size: 12px; font-weight: 800; overflow-wrap: normal; padding: 5px 9px; white-space: nowrap; word-break: keep-all; }
 .summary-card-body { display: grid; gap: 14px; grid-template-areas: 'left right' 'bottom bottom'; grid-template-columns: 39% minmax(0, 1fr); padding: 18px 30px 46px; }
 .summary-card-left, .summary-card-right { display: grid; gap: 14px; min-width: 0; }
 .summary-card-left { grid-area: left; }
